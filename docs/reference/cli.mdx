@@ -71,7 +71,9 @@ mill [GLOBAL] schedule <models> <tasks> [FLAGS]
 
 ## mill collect
 
-Display aggregated results and check for missing jobs.
+Display aggregated performance and check for missing jobs. Results are read from
+the long-format `aggregate.csv` (one row per `model, task, n_shot, metric` with
+`performance` and `stderr` columns), so scores compare across any benchmark.
 
 ```bash
 mill [GLOBAL] collect [--models M,...] [--tasks T,...] [--metric METRIC] [--n_shots N,...]
@@ -81,7 +83,7 @@ mill [GLOBAL] collect [--models M,...] [--tasks T,...] [--metric METRIC] [--n_sh
 |---|---|---|
 | `--models` | all | Filter to specific model(s) |
 | `--tasks` | all | Filter to specific task(s) |
-| `--metric` | `acc` | Metric column to pivot in the results table |
+| `--metric` | all | Restrict the table to one metric name (e.g. `acc`, `exact_match`); default shows every metric's `performance` |
 | `--check` | true | Print missing `(model, task, n_shot)` combinations |
 | `--n_shots` | `0` | n-shot values to check for completeness |
 

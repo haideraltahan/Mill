@@ -2,17 +2,6 @@
 
 **Unified multi-modal evaluation framework** — one tool for text, image, video, and audio benchmarks.
 
-## Design principles
-
-| Feature | Borrowed from |
-|---|---|
-| Output caching (Feather, skip completed jobs) | unibench |
-| Multimodal ChatMessages protocol | lmms-eval |
-| Python-class task format | lighteval |
-| SLURM distributed scheduling | oellm-evals |
-| Per-family model config files | opencompass |
-| Bootstrap CI + metric registry | lighteval |
-
 ## Install
 
 ```bash
@@ -146,7 +135,9 @@ Configuration and SLURM files live separately under `cache_dir` (default `~/.cac
   outputs/
     {model_abbr}/
       {task_name}_{n_shot}shot.f     # Per-sample results (Apache Feather)
-  aggregate.csv                       # Summary: one row per (model, task, n_shot)
+  aggregate.csv                       # Long-format summary: one row per
+                                      # (model, task, n_shot, metric) with
+                                      # columns metric, performance, stderr
 ```
 
 Re-running `mill eval` with the same model + task skips inference automatically.
