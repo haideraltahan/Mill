@@ -1,0 +1,72 @@
+---
+title: "Installation"
+description: "Install Mill and optional backend extras."
+---
+
+## Core install
+
+Clone the repo and install in editable mode:
+
+```bash
+git clone https://github.com/haideraltahan/Mill
+cd Mill
+pip install -e ".[dev]"
+```
+
+The core package pulls in:
+
+| Dependency | Purpose |
+|---|---|
+| `torch >= 2.2` | Tensor computation |
+| `transformers >= 4.40` | HF model loading |
+| `datasets >= 2.18` | HF dataset streaming |
+| `pandas + pyarrow` | Feather output caching |
+| `pydantic >= 2.0` | `ChatMessages` protocol |
+| `pyyaml` | SLURM cluster config |
+| `accelerate >= 0.26` | Multi-GPU device maps |
+| `fire` | CLI routing |
+| `rich + prompt_toolkit` | Terminal UI |
+
+## Optional extras
+
+Install extras for the backends you need:
+
+```bash
+# vLLM backend — fastest local inference
+pip install -e ".[vllm]"
+
+# LiteLLM backend — OpenAI, Anthropic, and 100+ API providers
+pip install -e ".[litellm]"
+
+# Video decoding (decord)
+pip install -e ".[video]"
+
+# Audio tasks (librosa)
+pip install -e ".[audio]"
+
+# Code execution tasks (evaluate library)
+pip install -e ".[code]"
+```
+
+You can combine extras:
+
+```bash
+pip install -e ".[vllm,litellm,video]"
+```
+
+## Verify
+
+```bash
+mill ls
+```
+
+If the TUI opens, your install is working.
+
+## Environment variables
+
+| Variable | Default | Description |
+|---|---|---|
+| `MILL_OUTPUT_DIR` | `./mill_results` | Default output directory |
+| `MILL_CACHE_DIR` | `~/.cache/mill` | Config, SLURM jobs, logs |
+
+These are overridden by the `--output_dir` and `--cache_dir` CLI flags.

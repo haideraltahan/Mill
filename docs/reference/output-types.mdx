@@ -1,0 +1,87 @@
+---
+title: "Output Types"
+description: "The three OutputType values and how Mill queries the model for each."
+---
+
+Mill tasks declare one of three `OutputType` values, which determines how the model is queried and what the response looks like.
+
+---
+
+## `GENERATIVE` — `generate_until`
+
+The model **generates text autoregressively** until it hits a stop token or `max_new_tokens`.
+
+```
+Input:  "Question: What is 2+2?\nAnswer:"
+Output: "4"                              ← model produces this
+```
+
+- **Used for**: open-ended generation — math reasoning (GSM8K), summarization, code, VQA.
+- **Response type**: `str`
+- **Scoring**: compare the generated string to a gold answer with a metric like `exact_match`, regex extraction, or LLM-judge.
+
+---
+
+## `LOGPROBS` — `loglikelihood`
+
+The model **scores a fixed string** by computing the log-probability of that string given a context. No generation happens — you score each candidate and pick the highest.
+
+```
+Context:     "Question: The capital of France is?\nAnswer:"
+Candidate A: " Paris"   → log P = -0.3   ← highest → predicted answer
+Candidate B: " London"  → log P = -4.1
+Candidate C: " Berlin"  → log P = -3.8
+Candidate D: " Madrid"  → log P = -5.2
+```
+
+- **Used for**: multiple-choice tasks — MMLU, ARC, HellaSwag.
+- **Response type**: `(float, bool)` — `(total_log_prob, is_greedy_correct)`
+  - `is_greedy_correct` is `True` if the model's argmax at every token position matched the continuation, enabling both log-prob accuracy and strict greedy accuracy from a single forward pass.
+- **Why prefer this over generation for MCQ**: avoids formatting failures where a model answers "The answer is **(B)**" instead of "B", making scores more reliable and reproducible.
+
+---
+
+## `PERPLEXITY` — `loglikelihood_rolling`
+
+The model scores the **entire string as a sequence**, computing the average log-probability per token across all tokens (no context/continuation split).
+
+```
+Input:  "The quick brown fox jumps over the lazy dog"
+Output: -1.42  ← average log P per token across all tokens
+```
+
+- **Used for**: perplexity benchmarks — measuring how well a model predicts a corpus.
+- **Response type**: `float` (average log-prob per token)
+- **Aggregation**: `corpus_level_fn = lambda vals: 2 ** (-mean(vals))` converts to perplexity (bits).
+- **Lower perplexity = better**: the model finds the text more likely.
+- **Typical datasets**: WikiText-103, Penn Treebank, The Pile subsets.
+
+---
+
+## Summary
+
+| `OutputType` | Method | Generation? | Response | Typical tasks |
+|---|---|---|---|---|
+| `GENERATIVE` | `generate_until` | Yes | `str` | GSM8K, HumanEval, VQA, summarization |
+| `LOGPROBS` | `loglikelihood` | No | `(float, bool)` | MMLU, ARC, HellaSwag, WinoGrande |
+| `PERPLEXITY` | `loglikelihood_rolling` | No | `float` | WikiText, Penn Treebank, BPB benchmarks |
+
+---
+
+## How Mill uses OutputType
+
+Each `MillTaskConfig` declares one `output_type`. The evaluator groups instances by type and dispatches to the corresponding model method:
+
+```python
+# mill/evaluator.py
+if OutputType.GENERATIVE in by_type:
+    responses = model.generate_until(by_type[OutputType.GENERATIVE])
+
+if OutputType.LOGPROBS in by_type:
+    responses = model.loglikelihood(by_type[OutputType.LOGPROBS])
+
+if OutputType.PERPLEXITY in by_type:
+    responses = model.loglikelihood_rolling(by_type[OutputType.PERPLEXITY])
+```
+
+For `LOGPROBS` tasks, Mill creates **one `Instance` per choice** from the same `Doc`, then selects the choice with the highest log-prob as the model's prediction before scoring metrics.

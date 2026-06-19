@@ -1,0 +1,95 @@
+---
+title: "Text Evaluation"
+description: "Run text benchmarks with local HF models, vLLM, or API backends."
+---
+
+## Local HuggingFace model
+
+The default backend loads models via `transformers.AutoModelForCausalLM`.
+
+```bash
+mill eval meta-llama/Meta-Llama-3-8B-Instruct gsm8k,mmlu \
+  --model_args dtype=bfloat16,batch_size=8 \
+  --output_dir ./results
+```
+
+### model_args reference
+
+| Key | Type | Default | Description |
+|---|---|---|---|
+| `dtype` | str | `bfloat16` | `bfloat16` / `float16` / `float32` |
+| `device_map` | str | `auto` | `auto` / `cuda` / `cpu` |
+| `batch_size` | int | 8 | Samples per forward pass |
+| `max_context_length` | int | 4096 | Token budget |
+| `attn_implementation` | str | — | `flash_attention_2` / `sdpa` |
+| `trust_remote_code` | bool | `true` | Allow custom model code |
+| `use_chat_template` | bool | `false` | Wrap prompts with the tokenizer chat template |
+
+## vLLM backend
+
+For faster throughput on large models, use the vLLM backend (requires `pip install -e ".[vllm]"`):
+
+```bash
+mill --output_dir ./results eval vllm gsm8k \
+  --model_args path=meta-llama/Meta-Llama-3-8B-Instruct,dtype=bfloat16
+```
+
+## API backend (LiteLLM)
+
+Run any model accessible via an OpenAI-compatible API:
+
+```bash
+# OpenAI
+mill eval litellm gsm8k \
+  --model_args model=gpt-4o \
+  --output_dir ./results
+
+# Anthropic
+mill eval litellm gsm8k \
+  --model_args model=claude-3-5-sonnet-20241022 \
+  --output_dir ./results
+```
+
+Set `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` in your environment before running.
+
+## Few-shot evaluation
+
+`mill eval` runs each task at its built-in default `n_shots` value (GSM8K defaults to 0). Few-shot examples are pulled from the task's designated few-shot split (e.g. the GSM8K `train` split):
+
+```bash
+mill --output_dir ./results eval meta-llama/Meta-Llama-3-8B-Instruct gsm8k \
+  --model_args batch_size=4
+```
+
+<Note>
+`mill eval` has no n-shot flag — it always uses the task's configured default. To sweep multiple n-shot values, use [`mill schedule`](/docs/guides/distributed) with `--n_shots 0,5`, which launches one job per value.
+</Note>
+
+## Limiting samples (smoke tests)
+
+Pass `--limit` to cap the number of samples evaluated per task — useful for quick iteration:
+
+```bash
+mill --limit 50 eval meta-llama/Meta-Llama-3-8B-Instruct gsm8k \
+  --output_dir ./results
+```
+
+## Caching
+
+Mill writes results to [Apache Feather](https://arrow.apache.org/docs/python/feather.html) files in `output_dir`. On a re-run, completed `(model, task, n_shot)` jobs are automatically skipped — you only pay for new work.
+
+## Viewing results
+
+```bash
+# All results
+mill --output_dir ./results collect
+
+# Filter to a specific metric
+mill --output_dir ./results collect --metric gsm8k_acc
+
+# Check for missing jobs in a sweep
+mill --output_dir ./results collect \
+  --models meta-llama/Meta-Llama-3-8B-Instruct \
+  --tasks gsm8k,mmlu \
+  --n_shots 0,5
+```

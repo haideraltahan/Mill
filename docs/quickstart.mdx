@@ -1,0 +1,67 @@
+---
+title: "Quickstart"
+description: "Run your first evaluation in under five minutes."
+---
+
+## Prerequisites
+
+- Python 3.10+
+- A GPU (for local HF/vLLM models) or an API key (for LiteLLM backends)
+
+## 1. Install
+
+```bash
+pip install -e ".[dev]"
+```
+
+## 2. Run a text evaluation
+
+```bash
+mill eval meta-llama/Meta-Llama-3-8B-Instruct gsm8k \
+  --model_args dtype=bfloat16,batch_size=8 \
+  --output_dir ./results
+```
+
+Mill streams progress to your terminal and writes a Feather file to `./results/` when done.
+
+## 3. View results
+
+```bash
+mill --output_dir ./results collect --metric gsm8k_acc
+```
+
+The `collect` command renders a pivot table of scores in your terminal. Pass `--metric` to choose the column to show — GSM8K reports `gsm8k_acc`:
+
+```
+Mill results — metric: gsm8k_acc
+┌─────────────────────────────────────┬────────┐
+│ model                               │ gsm8k  │
+├─────────────────────────────────────┼────────┤
+│ meta-llama/Meta-Llama-3-8B-Instruct │ 0.7453 │
+└─────────────────────────────────────┴────────┘
+```
+
+## 4. Browse available tasks
+
+```bash
+mill ls
+```
+
+This opens a full-screen TUI browser. Use `↑ ↓` to navigate, `Tab` to switch between Benchmarks and Tasks, and `Enter` to copy a task name to your clipboard.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Text evaluation guide" href="/docs/guides/text-evaluation">
+    Few-shot, custom metrics, and n-shot sweeps.
+  </Card>
+  <Card title="Vision evaluation guide" href="/docs/guides/vision-evaluation">
+    Multimodal models with image/video inputs.
+  </Card>
+  <Card title="Distributed scheduling" href="/docs/guides/distributed">
+    Scale across a SLURM cluster.
+  </Card>
+  <Card title="CLI reference" href="/docs/reference/cli">
+    Full flag documentation.
+  </Card>
+</CardGroup>

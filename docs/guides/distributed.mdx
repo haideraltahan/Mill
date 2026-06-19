@@ -1,0 +1,107 @@
+---
+title: "Distributed Scheduling"
+description: "Scale evaluations across a SLURM cluster with mill schedule."
+---
+
+## How it works
+
+`mill schedule` generates a job matrix (models × tasks × n_shots), filters out already-completed jobs from the output cache, then submits a SLURM array job. Each array worker evaluates one `(model, task, n_shot)` combination and writes results to the shared `output_dir`.
+
+## Cluster configuration
+
+On first run, Mill copies its bundled `clusters.yaml` to `~/.cache/mill/clusters.yaml`. Edit it to match your cluster:
+
+```yaml
+clusters:
+  my-cluster:
+    hostname_pattern: "login*"       # matched against socket.gethostname()
+    partition: gpu
+    gpus_per_node: 1
+    cpus_per_task: 8
+    mem_gb: 64
+    time_hours: 4
+    max_array_size: 500
+```
+
+Use `--cache_dir` to point Mill at a different location:
+
+```bash
+mill --cache_dir /shared/mill-config schedule ...
+```
+
+## Basic usage
+
+```bash
+mill --output_dir /scratch/results schedule \
+  meta-llama/Meta-Llama-3-8B-Instruct \
+  gsm8k,mmlu_abstract_algebra \
+  --n_shots 0,5
+```
+
+Arguments are positional: `schedule <models> <tasks>`.
+
+## Selecting the cluster
+
+```bash
+# Auto-detect by hostname (default)
+mill --output_dir /scratch/results schedule llama3-8b gsm8k --cluster auto
+
+# Explicitly name a cluster from clusters.yaml
+mill --output_dir /scratch/results schedule llama3-8b gsm8k --cluster my-cluster
+```
+
+## Dry run — preview without submitting
+
+```bash
+mill --output_dir /scratch/results schedule \
+  meta-llama/Meta-Llama-3-8B-Instruct \
+  gsm8k,mmlu \
+  --n_shots 0,5 \
+  --dry_run
+```
+
+Prints the full job table so you can verify the sweep before committing GPU hours.
+
+## Local sequential run
+
+Skip SLURM and run all jobs in the current process — useful for debugging:
+
+```bash
+mill --output_dir ./results schedule \
+  meta-llama/Meta-Llama-3-8B-Instruct \
+  gsm8k \
+  --local
+```
+
+## Virtual environments in SLURM jobs
+
+```bash
+mill --output_dir /scratch/results schedule \
+  meta-llama/Meta-Llama-3-8B-Instruct gsm8k \
+  --venv_path /home/user/.venvs/mill
+```
+
+The SLURM worker activates this venv before running `mill eval`.
+
+## Custom task paths in SLURM workers
+
+If your tasks live outside the Mill package, pass extra directories so the worker can discover them:
+
+```bash
+mill --output_dir /scratch/results schedule \
+  meta-llama/Meta-Llama-3-8B-Instruct gsm8k \
+  --extra_task_paths /home/user/my-tasks
+```
+
+## Checking completion
+
+After the job array finishes:
+
+```bash
+mill --output_dir /scratch/results collect \
+  --models meta-llama/Meta-Llama-3-8B-Instruct \
+  --tasks gsm8k,mmlu \
+  --n_shots 0,5
+```
+
+The `--check` flag (default on) lists any missing `(model, task, n_shot)` combinations so you can resubmit stragglers.

@@ -1,0 +1,103 @@
+---
+title: "CLI Reference"
+description: "Complete flag documentation for the mill command."
+---
+
+## Global flags
+
+These flags apply to all subcommands and must be placed before the subcommand name:
+
+```bash
+mill [GLOBAL FLAGS] <subcommand> [SUBCOMMAND FLAGS]
+```
+
+| Flag | Default | Description |
+|---|---|---|
+| `--output_dir` | `./mill_results` | Directory where Feather result files are written |
+| `--cache_dir` | `~/.cache/mill` | Directory for `clusters.yaml`, SLURM job CSVs, and logs |
+| `--limit` | — | Cap samples per task (useful for smoke tests) |
+
+## mill eval
+
+Run evaluation locally on a single model.
+
+```bash
+mill [GLOBAL] eval <model> <tasks> [--model_args KEY=VAL,...] [--task_paths DIR,...]
+```
+
+| Argument | Description |
+|---|---|
+| `model` | HF model ID (`meta-llama/Meta-Llama-3-8B-Instruct`), backend name (`litellm`), or path to a Python config file |
+| `tasks` | Comma-separated task or benchmark names (`gsm8k,mmlu`) |
+| `--model_args` | Extra `key=value` pairs forwarded to the model constructor |
+| `--task_paths` | Comma-separated extra directories to scan for custom tasks |
+
+### Examples
+
+```bash
+# Local HF model
+mill --output_dir ./results eval meta-llama/Meta-Llama-3-8B-Instruct gsm8k \
+  --model_args dtype=bfloat16,batch_size=8
+
+# Python config file (vision model)
+mill --output_dir ./results eval mill/models/configs/qwen/qwen2_5_vl_7b.py vqav2,mmmu
+
+# API model
+mill --output_dir ./results eval litellm gsm8k \
+  --model_args model=gpt-4o
+
+# Smoke test — first 50 samples only
+mill --output_dir ./results --limit 50 eval meta-llama/Meta-Llama-3-8B-Instruct gsm8k
+```
+
+## mill schedule
+
+Generate and submit a SLURM job array.
+
+```bash
+mill [GLOBAL] schedule <models> <tasks> [FLAGS]
+```
+
+| Argument | Default | Description |
+|---|---|---|
+| `models` | required | Comma-separated model IDs or list |
+| `tasks` | required | Comma-separated task names |
+| `--n_shots` | `0` | Comma-separated n-shot values to sweep |
+| `--cluster` | `auto` | Cluster name from `clusters.yaml`, or `auto` for hostname detection |
+| `--local` | false | Run all jobs sequentially (no SLURM) |
+| `--dry_run` | false | Print job table without submitting |
+| `--venv_path` | — | Virtual environment to activate in SLURM workers |
+| `--extra_task_paths` | — | Extra task directories for SLURM workers |
+
+## mill collect
+
+Display aggregated results and check for missing jobs.
+
+```bash
+mill [GLOBAL] collect [--models M,...] [--tasks T,...] [--metric METRIC] [--n_shots N,...]
+```
+
+| Flag | Default | Description |
+|---|---|---|
+| `--models` | all | Filter to specific model(s) |
+| `--tasks` | all | Filter to specific task(s) |
+| `--metric` | `acc` | Metric column to pivot in the results table |
+| `--check` | true | Print missing `(model, task, n_shot)` combinations |
+| `--n_shots` | `0` | n-shot values to check for completeness |
+
+## mill ls
+
+Open the interactive TUI browser for benchmarks and tasks.
+
+```bash
+mill ls
+```
+
+| Key | Action |
+|---|---|
+| `↑` / `↓` | Navigate list |
+| `Tab` / `Shift+Tab` / `←` / `→` | Switch tabs |
+| `Shift+↑` / `Shift+↓` | Scroll detail panel |
+| Type | Filter (fuzzy search) |
+| `Enter` | Copy selected name to clipboard and exit |
+| `Escape` / `Ctrl+C` | Exit |

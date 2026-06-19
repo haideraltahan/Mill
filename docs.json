@@ -1,0 +1,58 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
+  "name": "Mill",
+  "description": "Unified multi-modal evaluation framework for text, image, video, and audio benchmarks.",
+  "colors": {
+    "primary": "#0D9373",
+    "light": "#07C983",
+    "dark": "#0D9373"
+  },
+  "favicon": "/favicon.svg",
+  "logo": {
+    "light": "/logo/light.svg",
+    "dark": "/logo/dark.svg"
+  },
+  "navigation": {
+    "groups": [
+      {
+        "group": "Getting Started",
+        "pages": [
+          "docs/introduction",
+          "docs/quickstart",
+          "docs/installation"
+        ]
+      },
+      {
+        "group": "Guides",
+        "pages": [
+          "docs/guides/text-evaluation",
+          "docs/guides/vision-evaluation",
+          "docs/guides/distributed"
+        ]
+      },
+      {
+        "group": "Reference",
+        "pages": [
+          "docs/reference/cli",
+          "docs/reference/tasks",
+          "docs/reference/models",
+          "docs/reference/output-types"
+        ]
+      }
+    ]
+  },
+  "navbar": {
+    "links": [
+      {
+        "label": "GitHub",
+        "href": "https://github.com/haideraltahan/Mill"
+      }
+    ]
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/haideraltahan/Mill"
+    }
+  }
+}

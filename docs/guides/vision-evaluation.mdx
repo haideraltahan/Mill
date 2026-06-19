@@ -1,0 +1,83 @@
+---
+title: "Vision Evaluation"
+description: "Evaluate multimodal models on image and video benchmarks."
+---
+
+## Overview
+
+Mill uses the `ChatMessages` protocol to pass multimodal inputs — images, video frames, or audio — alongside text. The model backend handles format conversion automatically.
+
+## Using a model config file
+
+Vision models typically need more configuration than a single model ID can express. Mill supports Python config files (following the opencompass style):
+
+```bash
+mill --output_dir ./results eval \
+  mill/models/configs/qwen/qwen2_5_vl_7b.py vqav2,mmmu
+```
+
+A config file returns a dict that mirrors `TransformersModel.__init__` keyword arguments:
+
+```python
+# mill/models/configs/qwen/qwen2_5_vl_7b.py
+model = {
+    "type": "hf",
+    "path": "Qwen/Qwen2.5-VL-7B-Instruct",
+    "modalities": ["text", "image", "video"],
+    "dtype": "bfloat16",
+    "device_map": "auto",
+    "max_context_length": 8192,
+    "batch_size": 4,
+    "attn_implementation": "flash_attention_2",
+    "use_chat_template": True,
+}
+```
+
+### Available config families
+
+| Family | Path |
+|---|---|
+| Qwen2.5-VL | `mill/models/configs/qwen/` |
+| InternVL | `mill/models/configs/internvl/` |
+| Llama | `mill/models/configs/llama/` |
+
+## Inline multimodal args
+
+For quick runs without a config file, pass `modalities` via `--model_args`:
+
+```bash
+mill --output_dir ./results eval hf vqav2 \
+  --model_args path=meta-llama/Llama-3.2-11B-Vision-Instruct,modalities=text+image,use_chat_template=true
+```
+
+## How multimodal tasks work
+
+A multimodal task's `prompt_function` (or `doc_to_visual`) returns a `Doc` with the `visuals` field populated. Mill assembles a `ChatMessages` object and passes it to the model:
+
+```python
+from mill.api.task import Doc
+
+def my_vqa_prompt(row: dict) -> Doc:
+    return Doc(
+        query=row["question"],
+        visuals=[row["image"]],          # PIL.Image, file path, or URL
+        target_index=row["answer_idx"],
+    )
+```
+
+## Video tasks
+
+Install the video extra first:
+
+```bash
+pip install -e ".[video]"
+```
+
+Video tasks work the same way — `Doc.videos` holds paths to video files, and Mill uses `decord` to decode frames before passing them to the model.
+
+## Limiting samples
+
+```bash
+mill --limit 100 --output_dir ./results eval \
+  mill/models/configs/qwen/qwen2_5_vl_7b.py mmmu
+```

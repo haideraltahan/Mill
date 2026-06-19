@@ -1,0 +1,139 @@
+---
+title: "Tasks"
+description: "Built-in benchmarks and how to write custom tasks."
+---
+
+## Built-in tasks
+
+| Task | Benchmark | Modality | Output type | Default n-shot |
+|---|---|---|---|---|
+| `gsm8k` | GSM8K | Text | Generative | 0 |
+| `mmlu_*` | MMLU (57 subtasks) | Text | Log-prob | 5 |
+| `math_*` | MATH | Text | Generative | 0 |
+| `mbpp` | MBPP | Text | Generative | 0 |
+
+Browse all tasks interactively with `mill ls`.
+
+## Output types
+
+| Type | When to use |
+|---|---|
+| `GENERATIVE` | Free-text generation — model writes an answer and you extract it |
+| `LOGPROBS` | Multiple-choice — rank answer options by log-probability |
+| `PERPLEXITY` | Measure rolling log-probability of a document |
+
+## MillTaskConfig fields
+
+Define a task by creating a `MillTaskConfig` and exporting it in a `TASKS_TABLE` list:
+
+```python
+from mill.api.instance import OutputType
+from mill.api.metrics import Metric
+from mill.api.task import Doc, MillTaskConfig
+
+def my_prompt(row: dict) -> Doc:
+    return Doc(
+        query=f"Answer the following: {row['question']}",
+        target_index=row["answer"],
+    )
+
+my_task = MillTaskConfig(
+    name="my_task",
+    version=1,
+    hf_repo="my-org/my-dataset",
+    hf_subset="default",
+    hf_avail_splits=["train", "test"],
+    evaluation_splits=["test"],
+    few_shots_split="train",
+    prompt_function=my_prompt,
+    output_type=OutputType.GENERATIVE,
+    generation_size=256,
+    stop_sequences=["\n\n"],
+    n_shots=0,
+    metrics=[Metric(
+        name="my_acc",
+        higher_is_better=True,
+        output_type=OutputType.GENERATIVE,
+        sample_level_fn=my_scorer,
+    )],
+    description="My custom task description.",
+    categories=["reasoning"],
+)
+
+TASKS_TABLE = [my_task]
+```
+
+### Key fields
+
+| Field | Type | Description |
+|---|---|---|
+| `name` | str | Unique task name used in CLI args |
+| `hf_repo` | str | HuggingFace dataset repo |
+| `hf_subset` | str | Dataset configuration / subset |
+| `evaluation_splits` | list[str] | Splits used for scoring |
+| `few_shots_split` | str | Split from which few-shot examples are drawn |
+| `prompt_function` | callable | `(row: dict) -> Doc` |
+| `output_type` | OutputType | `GENERATIVE`, `LOGPROBS`, or `PERPLEXITY` |
+| `generation_size` | int | Max new tokens (generative only) |
+| `stop_sequences` | list[str] | Stop strings for generation |
+| `n_shots` | int | Default few-shot count |
+| `metrics` | list[Metric] | Scoring functions |
+
+## The Doc dataclass
+
+`prompt_function` must return a `Doc`:
+
+```python
+@dataclass
+class Doc:
+    query: str                    # assembled text prompt
+    choices: list[str] | None     # answer options (LOGPROBS tasks)
+    target_index: int | str | None  # correct answer index or string
+    visuals: list | None          # PIL Images, paths, or URLs
+    audios: list | None           # audio paths or bytes
+    videos: list | None           # video paths
+    instruction: str | None       # optional system prompt
+    metadata: dict                # task-specific data
+```
+
+## Multimodal tasks
+
+Populate `Doc.visuals`, `Doc.audios`, or `Doc.videos` alongside `query`:
+
+```python
+def vqa_prompt(row: dict) -> Doc:
+    return Doc(
+        query=row["question"],
+        visuals=[row["image"]],      # PIL.Image, file path, or URL
+        target_index=row["answer"],
+    )
+```
+
+## Registering custom tasks
+
+Point Mill at a directory containing your task file(s):
+
+```bash
+mill eval meta-llama/Meta-Llama-3-8B-Instruct my_task \
+  --task_paths /home/user/my-tasks \
+  --output_dir ./results
+```
+
+Mill auto-discovers any file that exports a `TASKS_TABLE` list.
+
+## Defining a benchmark
+
+Group tasks under a benchmark name for cleaner CLI usage:
+
+```python
+from mill.api.task import MillBenchmarkConfig
+
+my_benchmark = MillBenchmarkConfig(
+    name="my_benchmark",
+    task_names=["my_task_a", "my_task_b"],
+    metric_names=["acc"],
+    weighted_aggregate=False,
+)
+
+BENCHMARKS_TABLE = [my_benchmark]
+```

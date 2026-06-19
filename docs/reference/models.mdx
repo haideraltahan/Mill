@@ -1,0 +1,166 @@
+---
+title: "Models"
+description: "Configure HuggingFace, vLLM, and API model backends."
+---
+
+## Backend overview
+
+| Backend | Registry name(s) | Install extra | Use case |
+|---|---|---|---|
+| HuggingFace Transformers | `hf`, `huggingface`, `transformers` | (core) | Local models, multimodal |
+| vLLM | `vllm` | `.[vllm]` | High-throughput local inference |
+| LiteLLM | `litellm` | `.[litellm]` | OpenAI, Anthropic, and 100+ API providers |
+
+## Specifying a model
+
+### By HF model ID (shorthand)
+
+```bash
+mill eval meta-llama/Meta-Llama-3-8B-Instruct gsm8k
+```
+
+Mill infers `type=hf` when the argument is a HuggingFace model path.
+
+### By backend name + model_args
+
+```bash
+mill eval litellm gsm8k --model_args model=gpt-4o
+```
+
+### By Python config file
+
+```bash
+mill eval mill/models/configs/qwen/qwen2_5_vl_7b.py vqav2
+```
+
+Mill calls `load_model_from_file()` on the path and uses the returned dict.
+
+---
+
+## HuggingFace Transformers
+
+Supports text-only and multimodal models via `AutoModelForCausalLM` + `AutoProcessor`.
+
+### model_args
+
+| Key | Type | Default | Description |
+|---|---|---|---|
+| `path` | str | required | HF model ID or local path |
+| `modalities` | str | `text` | `+`-separated list: `text`, `image`, `video`, `audio` |
+| `dtype` | str | `bfloat16` | `bfloat16` / `float16` / `float32` |
+| `device_map` | str | `auto` | `auto` / `cuda` / `cpu` |
+| `max_context_length` | int | `4096` | Token budget |
+| `batch_size` | int | `8` | Samples per forward pass |
+| `attn_implementation` | str | — | `flash_attention_2` / `sdpa` |
+| `trust_remote_code` | bool | `true` | Allow custom model code from HF |
+| `use_chat_template` | bool | `false` | Wrap prompts with the tokenizer chat template |
+
+### Example
+
+```bash
+mill eval hf gsm8k \
+  --model_args path=meta-llama/Meta-Llama-3-8B-Instruct,dtype=bfloat16,batch_size=4 \
+  --output_dir ./results
+```
+
+---
+
+## vLLM
+
+High-throughput inference backend. Requires `pip install -e ".[vllm]"`.
+
+```bash
+mill eval vllm gsm8k \
+  --model_args path=meta-llama/Meta-Llama-3-8B-Instruct,dtype=bfloat16 \
+  --output_dir ./results
+```
+
+---
+
+## LiteLLM
+
+Wraps any OpenAI-compatible API. Requires `pip install -e ".[litellm]"`.
+
+```bash
+# OpenAI
+OPENAI_API_KEY=sk-... mill eval litellm gsm8k \
+  --model_args model=gpt-4o \
+  --output_dir ./results
+
+# Anthropic
+ANTHROPIC_API_KEY=sk-ant-... mill eval litellm gsm8k \
+  --model_args model=claude-3-5-sonnet-20241022 \
+  --output_dir ./results
+```
+
+Pass any LiteLLM completion parameter through `model_args`.
+
+---
+
+## Python config files
+
+Config files let you version-control exact model settings and share them across runs.
+Place them anywhere and pass the path to `mill eval`.
+
+```python
+# my_model.py — returned dict mirrors TransformersModel.__init__ kwargs
+model = {
+    "type": "hf",
+    "path": "Qwen/Qwen2.5-VL-7B-Instruct",
+    "modalities": ["text", "image"],
+    "dtype": "bfloat16",
+    "device_map": "auto",
+    "max_context_length": 8192,
+    "batch_size": 4,
+    "use_chat_template": True,
+}
+```
+
+Built-in configs live under `mill/models/configs/`:
+
+| Family | Path |
+|---|---|
+| Qwen2.5-VL | `mill/models/configs/qwen/` |
+| InternVL | `mill/models/configs/internvl/` |
+| Llama | `mill/models/configs/llama/` |
+
+---
+
+## Writing a custom backend
+
+Subclass `MillModel` and register it. Implement the three batch hooks plus the
+`model_name` property — the base class wraps them with batching, progress bars,
+and automatic OOM retry, exposing the public `generate_until`, `loglikelihood`,
+and `loglikelihood_rolling` methods the evaluator calls:
+
+```python
+from mill.api.model import MillModel, ModelCapabilities
+from mill.api.registry import register_model
+
+@register_model("my-backend")
+class MyModel(MillModel):
+    def __init__(self, path: str, **kwargs):
+        self._path = path
+        self.capabilities = ModelCapabilities(
+            modalities={"text"},
+            max_context_length=4096,
+            supports_logprobs=True,
+            supports_chat_template=False,
+        )
+        # load your model here
+
+    @property
+    def model_name(self) -> str:
+        return self._path
+
+    def _generate_batch(self, batch, gen_kwargs) -> list[str]:
+        ...
+
+    def _loglikelihood_batch(self, batch) -> list[tuple[float, bool]]:
+        ...
+
+    def _loglikelihood_rolling_single(self, request) -> float:
+        ...
+```
+
+Once registered, use `my-backend` as the model name in `mill eval`.
