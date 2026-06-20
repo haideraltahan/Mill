@@ -57,6 +57,29 @@ mill --output_dir ./results collect --metric <metric>
 
 ## Results
 
+`<model>`, `<n>`-shot `<metric>`:
+
+<CardGroup cols={3}>
+  <Card title="Mill" icon="gauge">
+    **<xx.xx%>** ± <se>
+    <br />measured
+  </Card>
+  <Card title="Reported" icon="book">
+    **<yy.yy%>**
+    <br />published baseline
+  </Card>
+  <Card title="Difference" icon="scale-balanced">
+    **<±delta>**
+    <br />within <N>σ
+  </Card>
+</CardGroup>
+
+<Check>
+Mill reproduces the [<source>](<url>) score for `<model>` (**<yy.yy%>**) within one standard error.
+</Check>
+
+### Per-model results
+
 | Model | Mill (`<n>`-shot `<metric>`) | Reported | Source | Δ |
 |---|---|---|---|---|
 | `<model>` | **<xx.xx%>** ± <se> | <yy.yy%> | [<source>](<url>) | <±delta> |
