@@ -37,8 +37,13 @@
           "docs/reference/cli",
           "docs/reference/tasks",
           "docs/reference/models",
-          "docs/reference/output-types",
-          "docs/reference/reproducibility"
+          "docs/reference/output-types"
+        ]
+      },
+      {
+        "group": "Reproducibility",
+        "pages": [
+          "docs/reproducibility"
         ]
       }
     ]
