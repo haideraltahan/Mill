@@ -31,12 +31,33 @@ mill --output_dir ./results collect --metric acc
 
 ## Results
 
+`Qwen/Qwen3-0.6B-Base`, 5-shot `acc`:
+
+<CardGroup cols={3}>
+  <Card title="Mill" icon="gauge">
+    **53.78%** ± 1.53
+    <br />measured
+  </Card>
+  <Card title="Qwen3 report" icon="book">
+    **52.81%**
+    <br />published baseline
+  </Card>
+  <Card title="Difference" icon="scale-balanced">
+    **+0.97**
+    <br />within 1σ
+  </Card>
+</CardGroup>
+
+<Check>
+Mill reproduces the [Qwen3 Technical Report](https://arxiv.org/pdf/2505.09388) MMLU
+score for `Qwen/Qwen3-0.6B-Base` (**52.81%**) within one standard error.
+</Check>
+
+### Per-model results
+
 | Model | Mill (5-shot `acc`) | Reported | Source | Δ |
 |---|---|---|---|---|
 | `Qwen/Qwen3-0.6B-Base` | **53.78%** ± 1.53 | 52.81% | [Qwen3 Technical Report](https://arxiv.org/pdf/2505.09388) | +0.97 |
-
-Mill's **53.78% ± 1.53** matches the Qwen3 paper's **52.81%** within one standard
-error.
 
 <Accordion title="Per-subtask breakdown (57 tasks)">
 | Subtask | Acc (%) | ± |
