@@ -2,6 +2,7 @@
 __pycache__/
 *.py[codz]
 *$py.class
+tests/results/
 
 # C extensions
 *.so
@@ -221,3 +222,4 @@ __marimo__/
 .mcp.json
 .claude/
 .vscode/
+other_frameworks/
