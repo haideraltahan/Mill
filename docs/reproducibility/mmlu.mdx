@@ -1,20 +1,7 @@
 ---
-title: "Reproducibility"
-description: "Benchmark numbers reproduced with Mill, compared against published results."
+title: "MMLU"
+description: "MMLU reproduced with Mill (Qwen3-0.6B-Base) versus the Qwen3 Technical Report."
 ---
-
-Mill aims to reproduce the numbers reported in model and benchmark papers. Each
-entry below records the exact **evaluation configuration** (the hyperparameters
-that move scores), the command to reproduce it, and Mill's result side by side
-with the published figure.
-
-<Note>
-Mill writes accuracy as a fraction in `aggregate.csv` (e.g. `0.5378`); the tables
-here show percentages to match how papers report them. The `±` column is the
-bootstrap standard error, in percentage points.
-</Note>
-
-## MMLU
 
 MMLU is run as a **5-shot multiple-choice** task. Each answer option is scored by
 its log-probability (`LOGPROBS` output type) and `acc` is the fraction of
@@ -22,7 +9,7 @@ questions where the gold option ranks highest. The two hyperparameters that
 matter most for matching published numbers are the **5-shot** prompt and
 **log-prob** (rather than generative) scoring.
 
-### Evaluation configuration
+## Evaluation configuration
 
 | Hyperparameter | Value |
 |---|---|
@@ -33,7 +20,7 @@ matter most for matching published numbers are the **5-shot** prompt and
 | Precision (dtype) | `bfloat16` (Mill default) |
 | Backend | HuggingFace Transformers (`hf`) |
 
-### Reproduce
+## Reproduce
 
 ```bash
 mill --output_dir ./results eval Qwen/Qwen3-0.6B-Base mmlu \
@@ -42,7 +29,7 @@ mill --output_dir ./results eval Qwen/Qwen3-0.6B-Base mmlu \
 mill --output_dir ./results collect --metric acc
 ```
 
-### Results
+## Results
 
 | Model | Mill (5-shot `acc`) | Reported | Source | Δ |
 |---|---|---|---|---|
@@ -112,39 +99,3 @@ error.
 | `mmlu_virology` | 46.39 | 3.88 |
 | `mmlu_world_religions` | 55.56 | 3.81 |
 </Accordion>
-
-## Template — adding a new benchmark
-
-Copy this block for each new benchmark you validate. Replace the placeholders and
-fill the results table from the rollup row of your `aggregate.csv` (the row whose
-`task` equals the benchmark name, e.g. `mmlu,mmlu`).
-
-````mdx
-## <Benchmark name>
-
-<One line on the task and how it is scored.>
-
-### Evaluation configuration
-
-| Hyperparameter | Value |
-|---|---|
-| Benchmark / task | `<task>` |
-| n-shots | `<n>` |
-| Output type | `<GENERATIVE | LOGPROBS | PERPLEXITY>` |
-| Metric | `<metric>` |
-| Precision (dtype) | `bfloat16` |
-| Backend | `<hf | vllm | litellm>` |
-
-### Reproduce
-
-```bash
-mill --output_dir ./results eval <model> <task> --model_args dtype=bfloat16
-mill --output_dir ./results collect --metric <metric>
-```
-
-### Results
-
-| Model | Mill (`<n>`-shot `<metric>`) | Reported | Source | Δ |
-|---|---|---|---|---|
-| `<model>` | **<xx.xx%>** ± <se> | <yy.yy%> | [<source>](<url>) | <±delta> |
-````
