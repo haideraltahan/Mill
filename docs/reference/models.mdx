@@ -9,14 +9,20 @@ description: "Configure HuggingFace, vLLM, and API model backends."
 |---|---|---|---|
 | HuggingFace Transformers | `hf`, `huggingface`, `transformers` | (core) | Local models, multimodal |
 | vLLM | `vllm` | `.[vllm]` | High-throughput local inference |
-| LiteLLM | `litellm` | `.[litellm]` | OpenAI, Anthropic, and 100+ API providers |
+| LiteLLM | `litellm`, `openai`, `api` | `.[litellm]` | OpenAI, Anthropic, and 100+ API providers |
+
+<Note>
+LiteLLM (API) models support **generative tasks only** — log-probability and
+perplexity scoring aren't available over an API. Use them with generative
+benchmarks like `mmlu_pro`, not log-prob ones like `mmlu`.
+</Note>
 
 ## Specifying a model
 
 ### By HF model ID (shorthand)
 
 ```bash
-mill eval meta-llama/Meta-Llama-3-8B-Instruct gsm8k
+mill eval meta-llama/Meta-Llama-3-8B-Instruct mmlu
 ```
 
 Mill infers `type=hf` when the argument is a HuggingFace model path.
@@ -24,13 +30,13 @@ Mill infers `type=hf` when the argument is a HuggingFace model path.
 ### By backend name + model_args
 
 ```bash
-mill eval litellm gsm8k --model_args model=gpt-4o
+mill eval litellm mmlu_pro --model_args model=gpt-4o
 ```
 
 ### By Python config file
 
 ```bash
-mill eval mill/models/configs/qwen/qwen2_5_vl_7b.py vqav2
+mill eval mill/models/configs/qwen/qwen2_5_vl_7b.py mmlu
 ```
 
 Mill calls `load_model_from_file()` on the path and uses the returned dict.
@@ -46,11 +52,11 @@ Supports text-only and multimodal models via `AutoModelForCausalLM` + `AutoProce
 | Key | Type | Default | Description |
 |---|---|---|---|
 | `path` | str | required | HF model ID or local path |
-| `modalities` | str | `text` | `+`-separated list: `text`, `image`, `video`, `audio` |
+| `modalities` | list[str] | `["text"]` | Modalities handled, e.g. `["text", "image", "video", "audio"]`. Set via a config file — a list can't be passed through `--model_args` |
 | `dtype` | str | `bfloat16` | `bfloat16` / `float16` / `float32` |
 | `device_map` | str | `auto` | `auto` / `cuda` / `cpu` |
 | `max_context_length` | int | `4096` | Token budget |
-| `batch_size` | int | `8` | Samples per forward pass |
+| `batch_size` | int | auto | Samples per forward pass (auto-estimated from GPU memory if unset) |
 | `attn_implementation` | str | — | `flash_attention_2` / `sdpa` |
 | `trust_remote_code` | bool | `true` | Allow custom model code from HF |
 | `use_chat_template` | bool | `false` | Wrap prompts with the tokenizer chat template |
@@ -58,7 +64,7 @@ Supports text-only and multimodal models via `AutoModelForCausalLM` + `AutoProce
 ### Example
 
 ```bash
-mill eval hf gsm8k \
+mill eval hf mmlu \
   --model_args path=meta-llama/Meta-Llama-3-8B-Instruct,dtype=bfloat16,batch_size=4 \
   --output_dir ./results
 ```
@@ -70,10 +76,12 @@ mill eval hf gsm8k \
 High-throughput inference backend. Requires `pip install -e ".[vllm]"`.
 
 ```bash
-mill eval vllm gsm8k \
+mill eval vllm mmlu \
   --model_args path=meta-llama/Meta-Llama-3-8B-Instruct,dtype=bfloat16 \
   --output_dir ./results
 ```
+
+vLLM-specific `model_args`: `gpu_memory_utilization` (default `0.9`), `tensor_parallel_size` (default `1`), and `max_model_len` (override the model's max sequence length).
 
 ---
 
@@ -83,17 +91,19 @@ Wraps any OpenAI-compatible API. Requires `pip install -e ".[litellm]"`.
 
 ```bash
 # OpenAI
-OPENAI_API_KEY=sk-... mill eval litellm gsm8k \
+OPENAI_API_KEY=sk-... mill eval litellm mmlu_pro \
   --model_args model=gpt-4o \
   --output_dir ./results
 
 # Anthropic
-ANTHROPIC_API_KEY=sk-ant-... mill eval litellm gsm8k \
+ANTHROPIC_API_KEY=sk-ant-... mill eval litellm mmlu_pro \
   --model_args model=claude-3-5-sonnet-20241022 \
   --output_dir ./results
 ```
 
-Pass any LiteLLM completion parameter through `model_args`.
+Pass any LiteLLM completion parameter through `model_args`. API models run
+**generative tasks only** (e.g. `mmlu_pro`) — log-prob benchmarks like `mmlu`
+aren't supported over an API.
 
 ---
 

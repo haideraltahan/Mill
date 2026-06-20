@@ -28,7 +28,7 @@ mill [GLOBAL] eval <model> <tasks> [--model_args KEY=VAL,...] [--task_paths DIR,
 | Argument | Description |
 |---|---|
 | `model` | HF model ID (`meta-llama/Meta-Llama-3-8B-Instruct`), backend name (`litellm`), or path to a Python config file |
-| `tasks` | Comma-separated task or benchmark names (`gsm8k,mmlu`) |
+| `tasks` | Comma-separated task or benchmark names (`mmlu,mmlu_pro`) |
 | `--model_args` | Extra `key=value` pairs forwarded to the model constructor |
 | `--task_paths` | Comma-separated extra directories to scan for custom tasks |
 
@@ -36,18 +36,18 @@ mill [GLOBAL] eval <model> <tasks> [--model_args KEY=VAL,...] [--task_paths DIR,
 
 ```bash
 # Local HF model
-mill --output_dir ./results eval meta-llama/Meta-Llama-3-8B-Instruct gsm8k \
+mill --output_dir ./results eval meta-llama/Meta-Llama-3-8B-Instruct mmlu \
   --model_args dtype=bfloat16,batch_size=8
 
-# Python config file (vision model)
-mill --output_dir ./results eval mill/models/configs/qwen/qwen2_5_vl_7b.py vqav2,mmmu
+# Python config file (instruction-tuned model + chain-of-thought benchmark)
+mill --output_dir ./results eval mill/models/configs/qwen/qwen2_5_7b_instruct.py mmlu_pro
 
-# API model
-mill --output_dir ./results eval litellm gsm8k \
+# API model — generative tasks only (no log-prob), so use mmlu_pro not mmlu
+mill --output_dir ./results eval litellm mmlu_pro \
   --model_args model=gpt-4o
 
 # Smoke test — first 50 samples only
-mill --output_dir ./results --limit 50 eval meta-llama/Meta-Llama-3-8B-Instruct gsm8k
+mill --output_dir ./results --limit 50 eval meta-llama/Meta-Llama-3-8B-Instruct mmlu
 ```
 
 ## mill schedule
@@ -68,6 +68,7 @@ mill [GLOBAL] schedule <models> <tasks> [FLAGS]
 | `--dry_run` | false | Print job table without submitting |
 | `--venv_path` | — | Virtual environment to activate in SLURM workers |
 | `--extra_task_paths` | — | Extra task directories for SLURM workers |
+| `--minutes_per_eval` | `0` | Walltime budget per `(model, task, n_shot)` eval (sizes the array and time limit). `0` = built-in default; raise it for heavy generative tasks like `mmlu_pro` |
 
 ## mill collect
 

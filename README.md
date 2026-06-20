@@ -19,20 +19,20 @@ pip install -e ".[video]"    # video decoding (decord)
 ```bash
 # Text evaluation — local HF model
 mill --output_dir ./results eval \
-     meta-llama/Meta-Llama-3-8B-Instruct gsm8k,mmlu \
+     meta-llama/Meta-Llama-3-8B-Instruct mmlu,mmlu_pro \
      --model_args dtype=bfloat16,batch_size=8
 
-# Vision evaluation — multimodal model config file
+# Chain-of-thought benchmark — instruction-tuned model config file
 mill --output_dir ./results eval \
-     mill/models/configs/qwen/qwen2_5_vl_7b.py vqav2,mmmu
+     mill/models/configs/qwen/qwen2_5_7b_instruct.py mmlu_pro
 
-# API model
-mill --output_dir ./results eval litellm gsm8k \
+# API model (generative tasks only)
+mill --output_dir ./results eval litellm mmlu_pro \
      --model_args model=gpt-4o
 
 # Distributed SLURM scheduling
 mill --output_dir /scratch/results schedule \
-     meta-llama/Meta-Llama-3-8B-Instruct gsm8k,mmlu_abstract_algebra \
+     meta-llama/Meta-Llama-3-8B-Instruct mmlu \
      --n_shots 0,5 --cluster auto
 
 # Collect results after jobs finish
@@ -63,8 +63,8 @@ mill/
 │       ├── llama/
 │       └── internvl/
 ├── tasks/
-│   ├── gsm8k/task.py    GSM8K (math reasoning, generative)
-│   └── mmlu/task.py     MMLU (57 subjects, log-prob scoring)
+│   ├── mmlu/task.py      MMLU (57 subjects, log-prob scoring)
+│   └── mmlu_pro/task.py  MMLU-Pro (10-option, generative chain-of-thought)
 ├── output.py       Feather-based caching (never recompute completed jobs)
 ├── evaluator.py    Core eval loop: requests → model → metrics → cache
 ├── pipeline.py     Orchestrator: skip done → load model → run → display

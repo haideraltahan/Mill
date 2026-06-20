@@ -14,13 +14,24 @@ On first run, Mill copies its bundled `clusters.yaml` to `~/.cache/mill/clusters
 ```yaml
 clusters:
   my-cluster:
-    hostname_pattern: "login*"       # matched against socket.gethostname()
+    hostname_pattern: "login*"   # matched against socket.gethostname()
     partition: gpu
+    account: my_project
+    gpu_type: A100               # informational label, included in the gres spec
     gpus_per_node: 1
-    cpus_per_task: 8
-    mem_gb: 64
-    time_hours: 4
-    max_array_size: 500
+    mem: "64G"
+    queue_limit: 200             # cap on jobs queued at once (throttles the array)
+    max_array_len: 100           # max simultaneous array tasks
+```
+
+There's no walltime field — the SLURM time limit is computed automatically from the
+number of evals per job. Override the per-eval budget with `--minutes_per_eval`
+(raise it for heavy generative tasks like `mmlu_pro`):
+
+```bash
+mill --output_dir /scratch/results schedule \
+  meta-llama/Meta-Llama-3-8B-Instruct mmlu_pro \
+  --minutes_per_eval 240
 ```
 
 Use `--cache_dir` to point Mill at a different location:
@@ -34,20 +45,21 @@ mill --cache_dir /shared/mill-config schedule ...
 ```bash
 mill --output_dir /scratch/results schedule \
   meta-llama/Meta-Llama-3-8B-Instruct \
-  gsm8k,mmlu_abstract_algebra \
+  mmlu \
   --n_shots 0,5
 ```
 
-Arguments are positional: `schedule <models> <tasks>`.
+Arguments are positional: `schedule <models> <tasks>`. Passing the `mmlu` benchmark
+expands to its 57 subject tasks, so this sweep is 57 tasks × 2 n-shot values = 114 jobs.
 
 ## Selecting the cluster
 
 ```bash
 # Auto-detect by hostname (default)
-mill --output_dir /scratch/results schedule llama3-8b gsm8k --cluster auto
+mill --output_dir /scratch/results schedule meta-llama/Meta-Llama-3-8B-Instruct mmlu --cluster auto
 
 # Explicitly name a cluster from clusters.yaml
-mill --output_dir /scratch/results schedule llama3-8b gsm8k --cluster my-cluster
+mill --output_dir /scratch/results schedule meta-llama/Meta-Llama-3-8B-Instruct mmlu --cluster my-cluster
 ```
 
 ## Dry run — preview without submitting
@@ -55,7 +67,7 @@ mill --output_dir /scratch/results schedule llama3-8b gsm8k --cluster my-cluster
 ```bash
 mill --output_dir /scratch/results schedule \
   meta-llama/Meta-Llama-3-8B-Instruct \
-  gsm8k,mmlu \
+  mmlu,mmlu_pro \
   --n_shots 0,5 \
   --dry_run
 ```
@@ -69,7 +81,7 @@ Skip SLURM and run all jobs in the current process — useful for debugging:
 ```bash
 mill --output_dir ./results schedule \
   meta-llama/Meta-Llama-3-8B-Instruct \
-  gsm8k \
+  mmlu \
   --local
 ```
 
@@ -77,7 +89,7 @@ mill --output_dir ./results schedule \
 
 ```bash
 mill --output_dir /scratch/results schedule \
-  meta-llama/Meta-Llama-3-8B-Instruct gsm8k \
+  meta-llama/Meta-Llama-3-8B-Instruct mmlu \
   --venv_path /home/user/.venvs/mill
 ```
 
@@ -89,7 +101,7 @@ If your tasks live outside the Mill package, pass extra directories so the worke
 
 ```bash
 mill --output_dir /scratch/results schedule \
-  meta-llama/Meta-Llama-3-8B-Instruct gsm8k \
+  meta-llama/Meta-Llama-3-8B-Instruct my_task \
   --extra_task_paths /home/user/my-tasks
 ```
 
@@ -100,7 +112,7 @@ After the job array finishes:
 ```bash
 mill --output_dir /scratch/results collect \
   --models meta-llama/Meta-Llama-3-8B-Instruct \
-  --tasks gsm8k,mmlu \
+  --tasks mmlu,mmlu_pro \
   --n_shots 0,5
 ```
 

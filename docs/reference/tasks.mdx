@@ -3,16 +3,16 @@ title: "Tasks"
 description: "Built-in benchmarks and how to write custom tasks."
 ---
 
-## Built-in tasks
+## Built-in benchmarks
 
-| Task | Benchmark | Modality | Output type | Default n-shot |
-|---|---|---|---|---|
-| `gsm8k` | GSM8K | Text | Generative | 0 |
-| `mmlu_*` | MMLU (57 subtasks) | Text | Log-prob | 5 |
-| `math_*` | MATH | Text | Generative | 0 |
-| `mbpp` | MBPP | Text | Generative | 0 |
+Mill is in **alpha** — two benchmarks ship today. Add your own with [custom tasks](#registering-custom-tasks).
 
-Browse all tasks interactively with `mill ls`.
+| Benchmark | Task name(s) | Modality | Output type | Default n-shot | Metric |
+|---|---|---|---|---|---|
+| `mmlu` | `mmlu_<subject>` (57 subjects) | Text | `LOGPROBS` | 5 | `acc` |
+| `mmlu_pro` | `mmlu_pro` | Text | `GENERATIVE` (chain-of-thought) | 0 | `mmlu_pro_acc` |
+
+Pass either the benchmark name (`mmlu`) or an individual task (`mmlu_abstract_algebra`) to `mill eval`. Browse everything interactively with `mill ls`.
 
 ## Output types
 

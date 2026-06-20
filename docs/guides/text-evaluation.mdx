@@ -8,7 +8,7 @@ description: "Run text benchmarks with local HF models, vLLM, or API backends."
 The default backend loads models via `transformers.AutoModelForCausalLM`.
 
 ```bash
-mill eval meta-llama/Meta-Llama-3-8B-Instruct gsm8k,mmlu \
+mill eval meta-llama/Meta-Llama-3-8B-Instruct mmlu,mmlu_pro \
   --model_args dtype=bfloat16,batch_size=8 \
   --output_dir ./results
 ```
@@ -19,7 +19,7 @@ mill eval meta-llama/Meta-Llama-3-8B-Instruct gsm8k,mmlu \
 |---|---|---|---|
 | `dtype` | str | `bfloat16` | `bfloat16` / `float16` / `float32` |
 | `device_map` | str | `auto` | `auto` / `cuda` / `cpu` |
-| `batch_size` | int | 8 | Samples per forward pass |
+| `batch_size` | int | auto | Samples per forward pass (auto-estimated if unset) |
 | `max_context_length` | int | 4096 | Token budget |
 | `attn_implementation` | str | — | `flash_attention_2` / `sdpa` |
 | `trust_remote_code` | bool | `true` | Allow custom model code |
@@ -30,22 +30,24 @@ mill eval meta-llama/Meta-Llama-3-8B-Instruct gsm8k,mmlu \
 For faster throughput on large models, use the vLLM backend (requires `pip install -e ".[vllm]"`):
 
 ```bash
-mill --output_dir ./results eval vllm gsm8k \
+mill --output_dir ./results eval vllm mmlu \
   --model_args path=meta-llama/Meta-Llama-3-8B-Instruct,dtype=bfloat16
 ```
 
 ## API backend (LiteLLM)
 
-Run any model accessible via an OpenAI-compatible API:
+Run any model accessible via an OpenAI-compatible API. API models support
+**generative tasks only**, so use `mmlu_pro` (chain-of-thought), not the
+log-prob `mmlu`:
 
 ```bash
 # OpenAI
-mill eval litellm gsm8k \
+mill eval litellm mmlu_pro \
   --model_args model=gpt-4o \
   --output_dir ./results
 
 # Anthropic
-mill eval litellm gsm8k \
+mill eval litellm mmlu_pro \
   --model_args model=claude-3-5-sonnet-20241022 \
   --output_dir ./results
 ```
@@ -54,10 +56,10 @@ Set `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` in your environment before running.
 
 ## Few-shot evaluation
 
-`mill eval` runs each task at its built-in default `n_shots` value (GSM8K defaults to 0). Few-shot examples are pulled from the task's designated few-shot split (e.g. the GSM8K `train` split):
+`mill eval` runs each task at its built-in default `n_shots` value (MMLU defaults to 5, MMLU-Pro to 0). Few-shot examples are pulled from the task's designated few-shot split (e.g. MMLU's `dev` split):
 
 ```bash
-mill --output_dir ./results eval meta-llama/Meta-Llama-3-8B-Instruct gsm8k \
+mill --output_dir ./results eval meta-llama/Meta-Llama-3-8B-Instruct mmlu \
   --model_args batch_size=4
 ```
 
@@ -70,7 +72,7 @@ mill --output_dir ./results eval meta-llama/Meta-Llama-3-8B-Instruct gsm8k \
 Pass `--limit` to cap the number of samples evaluated per task — useful for quick iteration:
 
 ```bash
-mill --limit 50 eval meta-llama/Meta-Llama-3-8B-Instruct gsm8k \
+mill --limit 50 eval meta-llama/Meta-Llama-3-8B-Instruct mmlu \
   --output_dir ./results
 ```
 
@@ -85,11 +87,11 @@ Mill writes results to [Apache Feather](https://arrow.apache.org/docs/python/fea
 mill --output_dir ./results collect
 
 # Filter to a specific metric
-mill --output_dir ./results collect --metric gsm8k_acc
+mill --output_dir ./results collect --metric acc
 
 # Check for missing jobs in a sweep
 mill --output_dir ./results collect \
   --models meta-llama/Meta-Llama-3-8B-Instruct \
-  --tasks gsm8k,mmlu \
+  --tasks mmlu,mmlu_pro \
   --n_shots 0,5
 ```

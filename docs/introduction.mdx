@@ -39,16 +39,16 @@ Mill borrows proven ideas from across the evaluation landscape:
 
 <CardGroup cols={4}>
   <Card title="Text" icon="text">
-    GSM8K, MMLU, and more
+    MMLU and MMLU-Pro built in
   </Card>
   <Card title="Image" icon="image">
-    VQAv2, MMMU, and more
+    Multimodal models + custom tasks
   </Card>
   <Card title="Video" icon="video">
-    Video QA tasks via decord
+    Custom tasks via decord
   </Card>
   <Card title="Audio" icon="waveform">
-    Audio benchmarks (coming soon)
+    Coming soon
   </Card>
 </CardGroup>
 
@@ -57,14 +57,14 @@ Mill borrows proven ideas from across the evaluation landscape:
 ```bash
 # Text evaluation — local HF model
 mill --output_dir ./results eval \
-     meta-llama/Meta-Llama-3-8B-Instruct gsm8k,mmlu \
+     meta-llama/Meta-Llama-3-8B-Instruct mmlu,mmlu_pro \
      --model_args dtype=bfloat16,batch_size=8
 
-# Vision evaluation — multimodal model config file
+# Chain-of-thought benchmark — instruction-tuned model config file
 mill --output_dir ./results eval \
-     mill/models/configs/qwen/qwen2_5_vl_7b.py vqav2,mmmu
+     mill/models/configs/qwen/qwen2_5_7b_instruct.py mmlu_pro
 
-# API model (OpenAI / Anthropic)
-mill --output_dir ./results eval litellm gsm8k \
+# API model (OpenAI / Anthropic) — generative tasks only
+mill --output_dir ./results eval litellm mmlu_pro \
      --model_args model=gpt-4o
 ```

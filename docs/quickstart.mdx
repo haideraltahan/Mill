@@ -17,7 +17,7 @@ pip install -e ".[dev]"
 ## 2. Run a text evaluation
 
 ```bash
-mill eval meta-llama/Meta-Llama-3-8B-Instruct gsm8k \
+mill eval meta-llama/Meta-Llama-3-8B-Instruct mmlu \
   --model_args dtype=bfloat16,batch_size=8 \
   --output_dir ./results
 ```
@@ -27,17 +27,17 @@ Mill streams progress to your terminal and writes a Feather file to `./results/`
 ## 3. View results
 
 ```bash
-mill --output_dir ./results collect --metric gsm8k_acc
+mill --output_dir ./results collect --metric acc
 ```
 
-The `collect` command renders a pivot table of scores in your terminal. Pass `--metric` to choose the column to show — GSM8K reports `gsm8k_acc`:
+The `collect` command renders a table of scores in your terminal. Pass `--metric` to choose which metric to show — MMLU reports `acc`:
 
 ```
-Mill results — metric: gsm8k_acc
+Mill results — performance (acc)
 ┌─────────────────────────────────────┬────────┐
-│ model                               │ gsm8k  │
+│ model                               │ mmlu   │
 ├─────────────────────────────────────┼────────┤
-│ meta-llama/Meta-Llama-3-8B-Instruct │ 0.7453 │
+│ meta-llama/Meta-Llama-3-8B-Instruct │ 0.6398 │
 └─────────────────────────────────────┴────────┘
 ```
 
