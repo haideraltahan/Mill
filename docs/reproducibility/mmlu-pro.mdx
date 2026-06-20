@@ -1,0 +1,48 @@
+---
+title: "MMLU-Pro"
+description: "MMLU-Pro reproduced with Mill — generative chain-of-thought, 10-option multiple choice."
+---
+
+MMLU-Pro is a harder successor to MMLU: ~12K questions across 14 categories with up
+to 10 answer options each. Mill runs it as **generative chain-of-thought** — the
+model reasons step by step and ends with `Answer: $LETTER`, and the answer letter is
+regex-extracted from the response (mirroring lighteval's `mmlu_pro` task).
+
+## Evaluation configuration
+
+| Hyperparameter | Value |
+|---|---|
+| Benchmark / task | `mmlu_pro` (`TIGER-Lab/MMLU-Pro`, `test` split) |
+| n-shots | `0` (zero-shot CoT) |
+| Output type | `GENERATIVE` (reason, then `Answer: $LETTER`) |
+| Metric | `mmlu_pro_acc` (extracts the A–J letter) |
+| Max new tokens | `2048` |
+| Precision (dtype) | `bfloat16` (Mill default) |
+| Backend | HuggingFace Transformers (`hf`) |
+
+<Note>
+MMLU-Pro is designed for chain-of-thought answering and works best with
+instruction-tuned models; base models often fail to emit the `Answer: $LETTER`
+line and score near chance.
+</Note>
+
+## Reproduce
+
+```bash
+mill --output_dir ./results eval <model> mmlu_pro \
+  --model_args dtype=bfloat16
+
+mill --output_dir ./results collect --metric mmlu_pro_acc
+```
+
+## Results
+
+<Info>
+Results pending a full evaluation run. After running the command above, fill in the
+cards and table below from the `mmlu_pro` rollup row of your `aggregate.csv`, using
+the [MMLU-Pro paper](https://arxiv.org/abs/2406.01574) as the reported baseline.
+</Info>
+
+| Model | Mill (CoT `mmlu_pro_acc`) | Reported | Source | Δ |
+|---|---|---|---|---|
+| `<model>` | — | — | [MMLU-Pro paper](https://arxiv.org/abs/2406.01574) | — |

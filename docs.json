@@ -44,7 +44,14 @@
         "group": "Reproducibility",
         "pages": [
           "docs/reproducibility/overview",
-          "docs/reproducibility/mmlu"
+          "docs/reproducibility/mmlu",
+          "docs/reproducibility/mmlu-pro"
+        ]
+      },
+      {
+        "group": "Changelog",
+        "pages": [
+          "docs/changelog"
         ]
       }
     ]
