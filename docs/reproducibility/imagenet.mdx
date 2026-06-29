@@ -1,0 +1,59 @@
+---
+title: "ImageNet"
+description: "ImageNet-1k reproduced with Mill — zero-shot image classification (CLIP) and generative MCQ (VLMs)."
+---
+
+ImageNet-1k is the standard 1000-class image classification benchmark (50K validation images). Mill registers it as one benchmark with two renderings, picked by model capability: CLIP-style models run **zero-shot classification** — each image is scored against the 1000 class names by image-text similarity, ensembling 80 prompt templates per class — and vision-language models run a **generative multiple-choice** variant, where the true class plus 9 random distractors are shown as lettered options (A–J) and the answer letter is parsed from the generation.
+
+## Evaluation configuration
+
+| Hyperparameter | Value |
+| --- | --- |
+| Benchmark | `imagenet` (`haideraltahan/wds_imagenet1k`, `test` split, 50K images) |
+| Variants | `imagenet` (zero-shot, CLIP) · `imagenet_mcq` (generative MCQ, VLM) |
+| n-shots | `0` |
+| Output type | Zero-shot classification (image-text similarity) · `GENERATIVE` for the MCQ variant |
+| Metric | `acc` (zero-shot) · `imagenet_mcq_acc` (MCQ) |
+| Prompt templates | 80 OpenAI CLIP templates, ensembled per class |
+| Seed | `42` (fixes the MCQ distractor draw and option shuffle so runs are reproducible) |
+| Precision (dtype) | `bfloat16` |
+| Backend | open\_clip (`clip`) for zero-shot · `hf` / `vllm` for the MCQ variant |
+
+## Class labels
+
+Mill scores classification against the **class names**, so each of the 1000 classes must be a distinct, single label. The names are OpenAI's curated CLIP labels (for example, the WordNet "crane" is already split into `crane bird` and `construction crane`). Two of those curated names still collided — identical strings get identical image-text similarity, so the correct class could not reliably win — and Mill disambiguates them to their own WordNet first synonym:
+
+| Class | Dataset label | Mill label |
+| --- | --- | --- |
+| 657 | `missile` | `missile` |
+| 744 | `missile` | `projectile` |
+| 836 | `sunglasses` | `sunglass` |
+| 837 | `sunglasses` | `sunglasses` |
+
+<Note>
+  Only these two entries change; the other 998 are identical to the clip\_benchmark export, so zero-shot scores stay directly comparable. A regression test asserts all 1000 class names are unique, single labels.
+</Note>
+
+## Reproduce
+
+```bash
+# Zero-shot classification (CLIP)
+mill --output_dir ./results eval \
+  "clip[path=ViT-B-32,pretrained=laion2b_s34b_b79k]" imagenet
+
+# Generative multiple-choice (vision-language model)
+mill --output_dir ./results eval \
+  "Qwen/Qwen3-VL-2B-Instruct[dtype=bfloat16]" imagenet --seed 42
+
+mill --output_dir ./results collect --metric acc
+```
+
+## Results
+
+<Info>
+  Results pending a full evaluation run. After running the command above, fill in the table below from the `imagenet` rollup row of your `aggregate.csv`, using the [open\_clip results](https://github.com/mlfoundations/open_clip/blob/main/docs/openclip_results.csv) as the reported baseline for CLIP zero-shot top-1.
+</Info>
+
+| Model | Mill (`acc`) | Reported | Source | Δ |
+| --- | --- | --- | --- | --- |
+| `ViT-B-32 / laion2b_s34b_b79k` | — | — | [open\_clip results](https://github.com/mlfoundations/open_clip/blob/main/docs/openclip_results.csv) | — |

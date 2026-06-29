@@ -3,15 +3,10 @@ title: "Overview"
 description: "How Mill reproduces published benchmark numbers, and a template for adding new ones."
 ---
 
-Mill aims to reproduce the numbers reported in model and benchmark papers. Each
-benchmark page in this section records the exact **evaluation configuration**
-(the hyperparameters that move scores), the command to reproduce it, and Mill's
-result side by side with the published figure.
+Mill aims to reproduce the numbers reported in model and benchmark papers. Each benchmark page in this section records the exact **evaluation configuration** (the hyperparameters that move scores), the command to reproduce it, and Mill's result side by side with the published figure.
 
 <Note>
-Mill writes accuracy as a fraction in `aggregate.csv` (e.g. `0.5378`); the tables
-in these pages show percentages to match how papers report them. The `±` column
-is the bootstrap standard error, in percentage points.
+  Mill writes accuracy as a fraction in `aggregate.csv` (e.g. `0.5378`); the tables in these pages show percentages to match how papers report them. The `±` column is the bootstrap standard error, in percentage points.
 </Note>
 
 ## Validated benchmarks
@@ -20,17 +15,19 @@ is the bootstrap standard error, in percentage points.
   <Card title="MMLU" icon="list-check" href="/docs/reproducibility/mmlu">
     5-shot multiple-choice knowledge benchmark.
   </Card>
+
   <Card title="MMLU-Pro" icon="layer-group" href="/docs/reproducibility/mmlu-pro">
     10-option chain-of-thought successor to MMLU (results pending).
+  </Card>
+
+  <Card title="ImageNet" icon="image" href="/docs/reproducibility/imagenet">
+    1000-class zero-shot image classification, CLIP and VLM (results pending).
   </Card>
 </CardGroup>
 
 ## Adding a new benchmark
 
-Create a new `.mdx` file under `docs/reproducibility/`, add it to the
-Reproducibility group in `docs.json`, and copy the block below. Replace the
-placeholders and fill the results table from the rollup row of your
-`aggregate.csv` (the row whose `task` equals the benchmark name, e.g. `mmlu,mmlu`).
+Create a new `.mdx` file under `docs/reproducibility/`, add it to the Reproducibility group in `docs.json`, and copy the block below. Replace the placeholders and fill the results table from the rollup row of your `aggregate.csv` (the row whose `task` equals the benchmark name, e.g. `mmlu,mmlu`).
 
 ````mdx
 ---
