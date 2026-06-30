@@ -33,19 +33,29 @@ mill --output_dir ./results collect --metric clotho_aqa_exact_match
 
 ## Results
 
-<CardGroup cols={2}>
-  <Card title="Qwen2-Audio-7B-Instruct" icon="gauge">
-    **73.44%** ± 1.16 \
-    single-word exact match
+`Qwen2-Audio-7B-Instruct`, 0-shot:
+
+<CardGroup cols={3}>
+  <Card title="Mill" icon="gauge">
+    **73.44%** ± 1.16
+    <br />exact match (strict)
+  </Card>
+  <Card title="lmms-eval 0.3" icon="book">
+    **75.87%**
+    <br />GPT-Eval (LLM judge)
+  </Card>
+  <Card title="Difference" icon="scale-balanced">
+    **−2.43 pts**
+    <br />different metric
   </Card>
 </CardGroup>
 
 <Note>
-  There is no widely-published exact-match number for Qwen2-Audio on the lmms-eval `clotho_aqa_test_filtered` split, so Mill's measurement is recorded as the **initial baseline**. For context, the original [Clotho-AQA paper](https://arxiv.org/abs/2204.09634) reports a binary-answer accuracy of ≈62.7% for its supervised LSTM baseline on the full (unfiltered) set; the zero-shot single-word setting here is a different, harder task and is not directly comparable.
+  lmms-eval's [0.3 release](https://github.com/EvolvingLMMs-Lab/lmms-eval/blob/main/docs/releases/lmms-eval-0.3.md) reports **75.87%** for Qwen2-Audio-Instruct on Clotho-AQA. Note the metric: although the release's dataset table lists Clotho-AQA's nominal metric as *Accuracy*, the actual **75.87%** is published in its alignment-check table under a column headed **`GPT-Eval`** — i.e. it is a **GPT-4o judge** score, not the case/punctuation-insensitive exact-match accuracy that Mill computes on the 1,442-sample filtered test. Mill's exact match is strictly harsher than an LLM judge, so Mill's **73.44%** landing ~2.4 points below is the expected direction, and the two corroborate each other. Because the metrics differ, this is a cross-check rather than an identical-metric reproduction; Mill records its exact-match score as the baseline. For further context, the original [Clotho-AQA paper](https://arxiv.org/abs/2204.09634) reports ≈62.7% binary-answer accuracy for its supervised LSTM baseline on the full (unfiltered) set.
 </Note>
 
 ### Per-model results
 
-| Model | Mill (`clotho_aqa_exact_match`) | Source |
-| --- | --- | --- |
-| `Qwen/Qwen2-Audio-7B-Instruct` | **73.44%** ± 1.16 | Mill measurement (initial baseline) |
+| Model | Mill (`clotho_aqa_exact_match`) | Reported (lmms-eval 0.3, GPT-Eval) | Source |
+| --- | --- | --- | --- |
+| `Qwen/Qwen2-Audio-7B-Instruct` | **73.44%** ± 1.16 | 75.87% | [lmms-eval 0.3](https://github.com/EvolvingLMMs-Lab/lmms-eval/blob/main/docs/releases/lmms-eval-0.3.md) |
