@@ -8,15 +8,16 @@ description: "Run text benchmarks with local HF models, vLLM, or API backends."
 The default backend loads models via `transformers.AutoModelForCausalLM`.
 
 ```bash
-mill eval meta-llama/Meta-Llama-3-8B-Instruct mmlu,mmlu_pro \
-  --model_args dtype=bfloat16,batch_size=8 \
+mill eval "meta-llama/Meta-Llama-3-8B-Instruct[dtype=bfloat16,batch_size=8]" mmlu,mmlu_pro \
   --output_dir ./results
 ```
 
-### model_args reference
+Model args go inline in brackets (`key=value`, comma-separated); quote the spec so your shell doesn't expand the brackets.
+
+### Model args reference
 
 | Key | Type | Default | Description |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `dtype` | str | `bfloat16` | `bfloat16` / `float16` / `float32` |
 | `device_map` | str | `auto` | `auto` / `cuda` / `cpu` |
 | `batch_size` | int | auto | Samples per forward pass (auto-estimated if unset) |
@@ -30,25 +31,21 @@ mill eval meta-llama/Meta-Llama-3-8B-Instruct mmlu,mmlu_pro \
 For faster throughput on large models, use the vLLM backend (requires `pip install -e ".[vllm]"`):
 
 ```bash
-mill --output_dir ./results eval vllm mmlu \
-  --model_args path=meta-llama/Meta-Llama-3-8B-Instruct,dtype=bfloat16
+mill --output_dir ./results eval \
+  "vllm[path=meta-llama/Meta-Llama-3-8B-Instruct,dtype=bfloat16]" mmlu
 ```
 
 ## API backend (LiteLLM)
 
-Run any model accessible via an OpenAI-compatible API. API models support
-**generative tasks only**, so use `mmlu_pro` (chain-of-thought), not the
-log-prob `mmlu`:
+Run any model accessible via an OpenAI-compatible API. API models support **generative tasks only**, so use `mmlu_pro` (chain-of-thought), not the log-prob `mmlu`:
 
 ```bash
 # OpenAI
-mill eval litellm mmlu_pro \
-  --model_args model=gpt-4o \
+mill eval "litellm[model=gpt-4o]" mmlu_pro \
   --output_dir ./results
 
 # Anthropic
-mill eval litellm mmlu_pro \
-  --model_args model=claude-3-5-sonnet-20241022 \
+mill eval "litellm[model=claude-3-5-sonnet-20241022]" mmlu_pro \
   --output_dir ./results
 ```
 
@@ -59,12 +56,11 @@ Set `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` in your environment before running.
 `mill eval` runs each task at its built-in default `n_shots` value (MMLU defaults to 5, MMLU-Pro to 0). Few-shot examples are pulled from the task's designated few-shot split (e.g. MMLU's `dev` split):
 
 ```bash
-mill --output_dir ./results eval meta-llama/Meta-Llama-3-8B-Instruct mmlu \
-  --model_args batch_size=4
+mill --output_dir ./results eval "meta-llama/Meta-Llama-3-8B-Instruct[batch_size=4]" mmlu
 ```
 
 <Note>
-`mill eval` has no n-shot flag — it always uses the task's configured default. To sweep multiple n-shot values, use [`mill schedule`](/docs/guides/distributed) with `--n_shots 0,5`, which launches one job per value.
+  `mill eval` has no n-shot flag — it always uses the task's configured default. To sweep multiple n-shot values, use [`mill schedule`](/docs/guides/distributed) with `--n_shots 0,5`, which launches one job per value.
 </Note>
 
 ## Limiting samples (smoke tests)

@@ -3,32 +3,61 @@ title: "Changelog"
 description: "New features, improvements, and fixes in Mill — newest first."
 ---
 
-Mill is in **alpha**. Releases are tracked below, newest first; APIs and task
-configs may still change between `0.x` versions.
+Mill is in **alpha**. Releases are tracked below, newest first; APIs and task configs may still change between `0.x` versions.
 
-<Update label="2026-06-20" description="v0.1.0" tags={["alpha"]}>
-## v0.1.0 — Initial alpha release
+<Update label="2026-06-30" tags={["alpha"]} description="Vision benchmarks">
+  ## Vision evaluation
 
-The first public release of Mill — a unified multi-modal evaluation framework that
-runs text, image, video, and audio benchmarks through one consistent interface.
+  Mill now evaluates **image** models alongside text, through the same interface.
 
-### Evaluation
-- `mill eval` — run a model on one or more tasks or benchmarks locally.
-- `mill collect` — aggregate results into a long-format table with bootstrap standard errors.
-- `mill schedule` — distribute a (models × tasks × n-shots) sweep across a SLURM cluster.
-- `mill ls` — interactive TUI browser for benchmarks and tasks.
+  ### Benchmarks
 
-### Model backends
-- HuggingFace Transformers (text **and** multimodal), vLLM, and LiteLLM (OpenAI, Anthropic, and 100+ API providers).
+  - **CIFAR-10** and **ImageNet-1k** — zero-shot image classification, with a generative multiple-choice rendering for vision-language models.
+  - **MMMU-Pro** (standard, 10 options) — multimodal chain-of-thought MCQ, with a CLIP zero-shot rendering for image–text encoders.
 
-### Benchmarks
-- **MMLU** — 57 subjects, 5-shot log-probability scoring.
-- **MMLU-Pro** — 10-option, generative chain-of-thought with answer-letter extraction.
+  Each vision benchmark ships two renderings of the same data and auto-selects the one your model supports (`pick_variant_by_model`).
 
-### Output & metrics
-- Feather output caching — completed `(model, task, n-shot)` jobs are skipped on re-run.
-- Composable metric registry with bootstrap confidence intervals.
+  ### Model backends
 
-### Reproducibility
-- Validated MMLU for `Qwen/Qwen3-0.6B-Base` at **53.78% ± 1.53**, within one standard error of the Qwen3 Technical Report's 52.81%. See [Reproducibility](/docs/reproducibility/overview).
+  - **open\_clip** (`clip`) — CLIP-style zero-shot image classification / retrieval.
+  - **timm** — supervised vision classification over a fixed pretrained head.
+
+  ### Task API
+
+  - `task_type` is now the primary axis (generative vs. classification families); `input_modalities` lets a task require a capability (e.g. image) and reject models that lack it.
+
+  ### Reproducibility
+
+  - CLIP `ViT-B-32/laion2b_s34b_b79k` reproduces **93.56%** zero-shot on CIFAR-10. See [Reproducibility](/docs/reproducibility/overview).
+</Update>
+
+<Update label="2026-06-20" tags={["alpha"]} description="v0.1.0">
+  ## v0.1.0 — Initial alpha release
+
+  The first public release of Mill — a unified multi-modal evaluation framework that runs text, image, video, and audio benchmarks through one consistent interface.
+
+  ### Evaluation
+
+  - `mill eval` — run a model on one or more tasks or benchmarks locally.
+  - `mill collect` — aggregate results into a long-format table with bootstrap standard errors.
+  - `mill schedule` — distribute a (models × tasks × n-shots) sweep across a SLURM cluster.
+  - `mill ls` — interactive TUI browser for benchmarks and tasks.
+
+  ### Model backends
+
+  - HuggingFace Transformers (text **and** multimodal), vLLM, and LiteLLM (OpenAI, Anthropic, and 100\+ API providers).
+
+  ### Benchmarks
+
+  - **MMLU** — 57 subjects, 5-shot log-probability scoring.
+  - **MMLU-Pro** — 10-option, generative chain-of-thought with answer-letter extraction.
+
+  ### Output & metrics
+
+  - Feather output caching — completed `(model, task, n-shot)` jobs are skipped on re-run.
+  - Composable metric registry with bootstrap confidence intervals.
+
+  ### Reproducibility
+
+  - Validated MMLU for `Qwen/Qwen3-0.6B-Base` at **53.78% ± 1.53**, within one standard error of the Qwen3 Technical Report's 52.81%. See [Reproducibility](/docs/reproducibility/overview).
 </Update>

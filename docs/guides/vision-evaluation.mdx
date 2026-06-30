@@ -7,18 +7,21 @@ description: "Evaluate multimodal models on image and video benchmarks."
 
 Mill uses the `ChatMessages` protocol to pass multimodal inputs — images, video frames, or audio — alongside text. The model backend handles format conversion automatically.
 
-<Note>
-Mill ships **no built-in vision benchmarks yet** — you supply your own multimodal
-task (see [How multimodal tasks work](#how-multimodal-tasks-work)) and register it
-with `--task_paths`. The multimodal **model** side (backends and config files) is
-fully supported. Replace `my_vqa` below with your own task name.
-</Note>
+## Built-in vision benchmarks
+
+Mill ships three image benchmarks, each runnable by CLIP-style encoders and vision-language models (see [Reproducibility](/docs/reproducibility/overview) for results):
+
+| Benchmark | Renderings | Run it |
+| --- | --- | --- |
+| `cifar10` | zero-shot (CLIP) · generative MCQ (VLM) | `mill eval "clip[path=ViT-B-32,pretrained=laion2b_s34b_b79k]" cifar10` |
+| `imagenet` | zero-shot (CLIP) · generative MCQ (VLM) | `mill eval "clip[path=ViT-B-32,pretrained=laion2b_s34b_b79k]" imagenet` |
+| `mmmu_pro` | generative CoT (VLM) · zero-shot (CLIP) | `mill eval "Qwen/Qwen3-VL-2B-Instruct[dtype=bfloat16]" mmmu_pro` |
+
+Each benchmark auto-selects the rendering your model supports. To add your own multimodal task, see [How multimodal tasks work](#how-multimodal-tasks-work) and register it with `--task_paths`.
 
 ## Using a model config file
 
-Multimodal models need their `modalities` declared as a list — which can't be
-expressed through `--model_args` — so configure them with a Python config file
-(opencompass style):
+Multimodal models need their `modalities` declared as a list — which can't be expressed inline in brackets — so configure them with a Python config file (opencompass style):
 
 ```bash
 mill --output_dir ./results eval \
@@ -26,8 +29,7 @@ mill --output_dir ./results eval \
   --task_paths ./my-tasks
 ```
 
-A config file exports a top-level `model` dict (mirroring `TransformersModel`
-keyword arguments, plus optional `abbr` and `run_cfg`). The bundled Qwen2.5-VL config:
+A config file exports a top-level `model` dict (mirroring `TransformersModel` keyword arguments, plus optional `abbr` and `run_cfg`). The bundled Qwen2.5-VL config:
 
 ```python
 # mill/models/configs/qwen/qwen2_5_vl_7b.py
@@ -47,7 +49,7 @@ model = dict(
 ### Available config families
 
 | Family | Path |
-|---|---|
+| --- | --- |
 | Qwen2.5-VL | `mill/models/configs/qwen/` |
 | InternVL | `mill/models/configs/internvl/` |
 | Llama | `mill/models/configs/llama/` |
