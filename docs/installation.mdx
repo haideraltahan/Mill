@@ -5,7 +5,13 @@ description: "Install Mill and optional backend extras."
 
 ## Core install
 
-Clone the repo and install in editable mode:
+Install the latest version straight from GitHub — no clone required:
+
+```bash
+pip install "mill-eval @ git+https://github.com/haideraltahan/Mill.git"
+```
+
+For development (editable install with test/lint tooling), clone first:
 
 ```bash
 git clone https://github.com/haideraltahan/Mill
@@ -29,33 +35,35 @@ The core package pulls in:
 
 ## Optional extras
 
-Install extras for the backends you need:
+Add the extras for the backends you need in the brackets (no clone required):
 
 ```bash
 # vLLM backend — fastest local inference
-pip install -e ".[vllm]"
+pip install "mill-eval[vllm] @ git+https://github.com/haideraltahan/Mill.git"
 
 # LiteLLM backend — OpenAI, Anthropic, and 100+ API providers
-pip install -e ".[litellm]"
+pip install "mill-eval[litellm] @ git+https://github.com/haideraltahan/Mill.git"
 
-# Vision backends — CLIP (open_clip) + timm
-pip install -e ".[vision]"   # or ".[clip]" / ".[timm]" individually
+# Vision backends — CLIP (open_clip) + timm   (or [clip] / [timm] individually)
+pip install "mill-eval[vision] @ git+https://github.com/haideraltahan/Mill.git"
 
 # Video decoding (decord)
-pip install -e ".[video]"
+pip install "mill-eval[video] @ git+https://github.com/haideraltahan/Mill.git"
 
 # Audio tasks (librosa)
-pip install -e ".[audio]"
+pip install "mill-eval[audio] @ git+https://github.com/haideraltahan/Mill.git"
 
 # Code execution tasks (evaluate library)
-pip install -e ".[code]"
+pip install "mill-eval[code] @ git+https://github.com/haideraltahan/Mill.git"
 ```
 
 You can combine extras:
 
 ```bash
-pip install -e ".[vllm,litellm,video]"
+pip install "mill-eval[vllm,litellm,video] @ git+https://github.com/haideraltahan/Mill.git"
 ```
+
+If you cloned the repo for development, the editable equivalent is `pip install -e ".[vllm]"`.
 
 ## Verify
 
