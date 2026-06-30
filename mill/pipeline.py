@@ -20,7 +20,7 @@ from mill.api.registry import (
     load_tasks_from_path,
 )
 from mill.api.task import ConfigurableTask, MillBenchmarkConfig, MillTaskConfig
-from mill.constants import OUTPUT_DIR
+from mill.constants import DEFAULT_SEED, OUTPUT_DIR
 from mill.evaluator import evaluate_task
 from mill.output import OutputHandler
 
@@ -35,9 +35,11 @@ class Pipeline:
         output_dir: str | Path = OUTPUT_DIR,
         limit: int | None = None,
         task_paths: list[str] | None = None,
+        seed: int = DEFAULT_SEED,
     ):
         self.output_handler = OutputHandler(output_dir=output_dir)
         self.limit = limit
+        self.seed = seed
 
         # ── Discover tasks and benchmarks ─────────────────────────────────────
         if task_paths:
@@ -79,8 +81,14 @@ class Pipeline:
         # Map each leaf task name to its parent benchmark name (empty = standalone)
         task_to_benchmark: dict[str, str] = {}
 
+        # Effective task list per benchmark: all subtasks, or — for
+        # variant-selection benchmarks — the single task matching the model.
+        bench_tasks: dict[str, list[str]] = {
+            bc.name: self._effective_tasks(bc) for bc in self._benchmark_configs
+        }
+
         for bc in self._benchmark_configs:
-            for task_name in bc.task_names:
+            for task_name in bench_tasks[bc.name]:
                 task_to_benchmark[task_name] = bc.name
                 if task_name not in leaf_names:
                     try:
@@ -103,6 +111,7 @@ class Pipeline:
             results[config.name] = self.output_handler.aggregate(
                 self._model_abbr, config.name, config.n_shots, metric_names,
                 benchmark=task_to_benchmark.get(config.name, ""),
+                task_type=config.task_type.value,
             )
 
         if pending:
@@ -115,13 +124,14 @@ class Pipeline:
                 len(pending), len(leaf_configs), self._model_abbr,
             )
             for config in pending:
-                task = ConfigurableTask(config)
+                task = ConfigurableTask(config, seed=self.seed)
                 results[config.name] = evaluate_task(
                     model=self._model,
                     task=task,
                     output_handler=self.output_handler,
                     limit=self.limit,
                     benchmark=task_to_benchmark.get(config.name, ""),
+                    seed=self.seed,
                 )
         else:
             logger.info("All leaf tasks already completed — loaded results from cache (no model load).")
@@ -131,19 +141,25 @@ class Pipeline:
 
         # ── Aggregate benchmark scores from leaf task results ─────────────────
         for bc in self._benchmark_configs:
+            effective = bench_tasks[bc.name]
+            if not effective:
+                logger.warning("Benchmark '%s': no task matches the model's capabilities", bc.name)
+                results[bc.name] = {}
+                continue
             n_shots = self._benchmark_n_shots(bc)
-            if len(bc.task_names) == 1:
-                # Single-task benchmark: pass through directly
-                results[bc.name] = results.get(bc.task_names[0], {})
+            if len(effective) == 1:
+                # Single task (or selected variant): pass through directly
+                results[bc.name] = results.get(effective[0], {})
             else:
                 results[bc.name] = self.output_handler.aggregate_group(
                     self._model_abbr,
                     bc.name,
-                    bc.task_names,
+                    effective,
                     n_shots,
                     bc.metric_names,
                     weighted=bc.weighted_aggregate,
                     benchmark=bc.name,
+                    task_type=get_task_config(effective[0]).task_type.value,
                 )
 
         # Only display names that were explicitly requested
@@ -159,6 +175,31 @@ class Pipeline:
             except KeyError:
                 continue
         return 0
+
+    def _effective_tasks(self, bc: MillBenchmarkConfig) -> list[str]:
+        """Tasks to actually run for a benchmark.
+
+        Normal benchmarks run all ``task_names``. Variant-selection benchmarks
+        run only the first task whose ``task_type`` the model supports.
+        """
+        if not bc.pick_variant_by_model:
+            return list(bc.task_names)
+        model_task_types = self._model_task_types()
+        for name in bc.task_names:
+            try:
+                if get_task_config(name).task_type in model_task_types:
+                    return [name]
+            except KeyError as e:
+                logger.error(str(e))
+        return []
+
+    def _model_task_types(self) -> frozenset:
+        """Task types the model supports — from the instance, or its config class."""
+        if self._model is not None:
+            return self._model.supported_task_types
+        from mill.api.model import class_supported_task_types
+        from mill.models.loader import resolve_model_class
+        return class_supported_task_types(resolve_model_class(self._model_config))
 
     def _display(self, results: dict[str, dict]) -> None:
         if not results:

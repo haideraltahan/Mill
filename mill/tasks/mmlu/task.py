@@ -6,6 +6,7 @@ highest log-prob answer.
 from mill.api.instance import OutputType
 from mill.api.metrics import get_metric
 from mill.api.task import MillBenchmarkConfig, MillTaskConfig
+from mill.api.taxonomy import TaskType
 from mill.tasks.mmlu.utils import mmlu_prompt
 
 # All 57 MMLU subjects
@@ -46,7 +47,8 @@ def _make_mmlu_task(subject: str) -> MillTaskConfig:
         evaluation_splits=["test"],
         few_shots_split="dev",
         prompt_function=_prompt,
-        output_type=OutputType.LOGPROBS,
+        task_type=TaskType.MULTIPLE_CHOICE,
+        output_type=OutputType.LOGPROBS,  # scored by per-choice log-probability
         n_shots=5,
         metrics=[get_metric("acc")],
         description=f"MMLU — {display}: 4-choice multiple-choice questions testing academic knowledge.",

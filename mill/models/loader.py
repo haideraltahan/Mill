@@ -34,25 +34,31 @@ def load_model_from_config(config: dict) -> MillModel:
     cfg.update(run_cfg)
     cfg.pop("num_gpus", None)  # used by scheduler, not model constructor
 
-    if isinstance(model_type, str):
-        if ":" in model_type:
-            # "module.path:ClassName"
-            module_path, cls_name = model_type.rsplit(":", 1)
-            mod = importlib.import_module(module_path)
-            cls = getattr(mod, cls_name)
-        else:
-            try:
-                # registered alias e.g. "hf", "vllm", "litellm"
-                cls = get_model_class(model_type)
-            except KeyError:
-                # plain HF model ID e.g. "Qwen/Qwen3-0.6B"
-                from mill.models.transformers import TransformersModel
-                cfg.setdefault("path", model_type)
-                cls = TransformersModel
-    else:
-        cls = model_type
+    cls = resolve_model_class({"type": model_type})
+    # Plain HF model ID (e.g. "Qwen/Qwen3-0.6B") routes to TransformersModel with path set.
+    if isinstance(model_type, str) and ":" not in model_type and model_type not in list_models():
+        cfg.setdefault("path", model_type)
 
     return cls(**cfg)
+
+
+def resolve_model_class(config: dict) -> type:
+    """Resolve a model config's ``type`` to its backend class without instantiating.
+
+    Accepts a class, a registry alias ("hf"/"vllm"/"clip"/...), a
+    "module.path:ClassName" string, or a plain HF model ID (-> TransformersModel).
+    """
+    model_type = config.get("type")
+    if not isinstance(model_type, str):
+        return model_type  # already a class
+    if ":" in model_type:
+        module_path, cls_name = model_type.rsplit(":", 1)
+        return getattr(importlib.import_module(module_path), cls_name)
+    try:
+        return get_model_class(model_type)  # registered alias
+    except KeyError:
+        from mill.models.transformers import TransformersModel
+        return TransformersModel  # plain HF model ID
 
 
 def load_model_from_name(name: str, **kwargs) -> MillModel:
@@ -73,15 +79,29 @@ def load_model_from_file(config_path: str) -> MillModel:
     return load_model_from_config(config)
 
 
+def _path_with_pretrained(config: dict) -> str:
+    """Combine ``path`` with an optional ``pretrained`` weights tag.
+
+    Backends whose identity is (architecture, weights) — e.g. open_clip's
+    ``ViT-B-32`` + ``laion2b_s34b_b79k`` — must keep both in the name so two
+    weight sets of the same architecture don't collide in the output cache.
+    """
+    name = str(config["path"])
+    if config.get("pretrained"):
+        name = f"{name}/{config['pretrained']}"
+    return name
+
+
 def model_name_from_config(config: dict) -> str:
     """Canonical model name (matching ``MillModel.model_name``) without loading.
 
-    Mirrors how each backend derives its name — the HF/vLLM ``path`` or the
-    LiteLLM ``model`` string — so the pipeline can consult the output cache and
-    skip loading model weights when there is nothing pending.
+    Mirrors how each backend derives its name — the HF/vLLM ``path`` (plus an
+    optional ``pretrained`` tag) or the LiteLLM ``model`` string — so the
+    pipeline can consult the output cache and skip loading weights when there is
+    nothing pending.
     """
     if config.get("path"):
-        return str(config["path"])
+        return _path_with_pretrained(config)
     if config.get("model"):
         return str(config["model"])
     type_val = config.get("type")
@@ -95,7 +115,7 @@ def model_abbr(config: dict) -> str:
     if config.get("abbr"):
         return config["abbr"]
     if config.get("path"):
-        return str(config["path"]).replace("/", "__")
+        return _path_with_pretrained(config).replace("/", "__")
     # type may be a plain HF model ID
     type_val = config.get("type", "unknown")
     if isinstance(type_val, str) and ":" not in type_val:

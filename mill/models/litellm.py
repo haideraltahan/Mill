@@ -5,7 +5,7 @@ import logging
 import time
 from typing import TYPE_CHECKING
 
-from mill.api.model import MillModel, ModelCapabilities
+from mill.api.model import GenerativeModel, ModelCapabilities
 from mill.api.registry import register_model
 
 if TYPE_CHECKING:
@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 @register_model("litellm", "openai", "api")
-class LiteLLMModel(MillModel):
+class LiteLLMModel(GenerativeModel):
     """Model backend via LiteLLM — supports OpenAI, Anthropic, Gemini, etc.
 
     Config dict fields:

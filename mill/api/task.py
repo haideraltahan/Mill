@@ -8,6 +8,8 @@ from typing import Any, Callable, Sequence
 
 from mill.api.instance import Instance, OutputType
 from mill.api.metrics import Metric
+from mill.api.taxonomy import CLASSIFICATION_TASK_TYPES, GENERATIVE_TASK_TYPES, TaskType
+from mill.constants import DEFAULT_SEED
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +49,10 @@ class MillTaskConfig:
     hf_subset: str | None = None
     hf_filter: Callable[[dict], bool] | None = None
     hf_revision: str | None = None
+    # For packaged builders (e.g. WebDataset/clip_benchmark exports): set
+    # hf_builder="webdataset" and hf_data_files={split: "hf://.../*.tar"}.
+    hf_builder: str | None = None
+    hf_data_files: dict | str | None = None
     hf_avail_splits: list[str] = field(default_factory=lambda: ["train", "validation", "test"])
     evaluation_splits: list[str] = field(default_factory=lambda: ["test"])
     few_shots_split: str | None = None
@@ -62,11 +68,21 @@ class MillTaskConfig:
     doc_to_audio: Callable[[dict], list] | str | None = None
     doc_to_video: Callable[[dict], list] | str | None = None
 
-    # ── Generation config ─────────────────────────────────────────────────────
+    # ── Task shape and scoring ────────────────────────────────────────────────
+    # task_type is the primary axis (what the task asks). output_type is a
+    # scoring detail of the generative family (how a response is produced/graded).
+    # If task_type is omitted it is derived from output_type for back-compat.
+    task_type: TaskType | None = None
     output_type: OutputType = OutputType.GENERATIVE
+    # Input modalities the task feeds the model (e.g. ["image", "text"]). The
+    # evaluator rejects models that can't ingest them. None = no constraint.
+    input_modalities: list[str] | None = None
     generation_size: int | None = 256
     stop_sequences: list[str] = field(default_factory=list)
     n_shots: int = 0
+    # Zero-shot classification: prompt templates (with a `{c}` classname slot)
+    # ensembled per class by the model. None falls back to the model's default.
+    zeroshot_templates: list[str] | None = None
 
     # ── Metrics ───────────────────────────────────────────────────────────────
     metrics: list[Metric] = field(default_factory=list)
@@ -77,6 +93,17 @@ class MillTaskConfig:
     capabilities: list[str] = field(default_factory=list)
     paper_url: str = ""
     approx_num_samples: dict[str, int] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        if self.task_type is None:
+            # Back-compat: infer a sensible task type from the scoring method.
+            # MCQ-by-generation tasks (output_type=GENERATIVE) should set
+            # task_type=MULTIPLE_CHOICE explicitly — they default to GENERATIVE_QA.
+            self.task_type = {
+                OutputType.GENERATIVE: TaskType.GENERATIVE_QA,
+                OutputType.LOGPROBS: TaskType.MULTIPLE_CHOICE,
+                OutputType.PERPLEXITY: TaskType.PERPLEXITY,
+            }[self.output_type]
 
 
 @dataclass
@@ -93,11 +120,17 @@ class MillBenchmarkConfig:
         metric_names:       Which metric(s) to aggregate across tasks and report.
         weighted_aggregate: False = unweighted mean across tasks (standard for
                             MMLU/MATH); True = weight by each task's sample count.
+        pick_variant_by_model: When True, ``task_names`` are mutually-exclusive
+                            *renderings* of the same benchmark, not subtasks to
+                            aggregate. The pipeline runs the single task whose
+                            ``task_type`` the model supports (e.g. CLIP -> the
+                            zero-shot variant, a VLM -> the generative-MCQ variant).
     """
     name: str
     task_names: list[str]
     metric_names: list[str] = field(default_factory=list)
     weighted_aggregate: bool = False
+    pick_variant_by_model: bool = False
     description: str = ""
     categories: list[str] = field(default_factory=list)
     capabilities: list[str] = field(default_factory=list)
@@ -107,8 +140,9 @@ class MillBenchmarkConfig:
 class MillTask(ABC):
     """Wraps a MillTaskConfig with dataset loading and request building."""
 
-    def __init__(self, config: MillTaskConfig):
+    def __init__(self, config: MillTaskConfig, seed: int = DEFAULT_SEED):
         self.config = config
+        self.seed = seed
         self._docs: dict[str, list[Doc]] = {}  # split -> docs
 
     @property
@@ -124,12 +158,19 @@ class MillTask(ABC):
             splits_to_load.append(self.config.few_shots_split)
         for split in splits_to_load:
             try:
-                ds = load_dataset(
-                    self.config.hf_repo,
-                    name=self.config.hf_subset,
-                    split=split,
-                    revision=self.config.hf_revision,
-                )
+                if self.config.hf_data_files:
+                    ds = load_dataset(
+                        self.config.hf_builder or self.config.hf_repo,
+                        data_files=self.config.hf_data_files,
+                        split=split,
+                    )
+                else:
+                    ds = load_dataset(
+                        self.config.hf_repo,
+                        name=self.config.hf_subset,
+                        split=split,
+                        revision=self.config.hf_revision,
+                    )
                 if self.config.hf_filter:
                     ds = ds.filter(self.config.hf_filter)
                 if limit is not None:
@@ -168,10 +209,10 @@ class MillTask(ABC):
             return self._docs.get(split, [])
         return [doc for docs in self._docs.values() for doc in docs]
 
-    def fewshot_docs(self, n: int, split: str | None = None, seed: int = 42) -> list[Doc]:
+    def fewshot_docs(self, n: int, split: str | None = None, seed: int | None = None) -> list[Doc]:
         src_split = split or self.config.few_shots_split or self.config.evaluation_splits[0]
         all_docs = self._docs.get(src_split, [])
-        rng = random.Random(seed)
+        rng = random.Random(self.seed if seed is None else seed)
         return rng.sample(all_docs, min(n, len(all_docs)))
 
     # ── Request building ──────────────────────────────────────────────────────
@@ -186,7 +227,17 @@ class MillTask(ABC):
             for doc in self._docs.get(split, []):
                 doc.fewshot_samples = fewshots
                 context = self._build_context(doc)
-                if self.config.output_type == OutputType.LOGPROBS:
+                if self.config.task_type in CLASSIFICATION_TASK_TYPES:
+                    # One request per doc: (media/context, candidate labels, templates).
+                    instances.append(Instance(
+                        request_type=self.config.task_type,
+                        doc=doc,
+                        arguments=(context, doc.choices or [], self.config.zeroshot_templates),
+                        idx=idx,
+                        metadata={"task": self.name, "split": split, "n_shot": n_shot},
+                    ))
+                    idx += 1
+                elif self.config.output_type == OutputType.LOGPROBS:
                     for choice_idx, choice in enumerate(doc.choices or []):
                         instances.append(Instance(
                             request_type=OutputType.LOGPROBS,
@@ -237,7 +288,10 @@ class MillTask(ABC):
     def process_results(self, doc: Doc, responses: list) -> dict[str, float]:
         results = {}
         for metric in self.config.metrics:
-            if self.config.output_type == OutputType.LOGPROBS:
+            if self.config.task_type in CLASSIFICATION_TASK_TYPES:
+                # Classifiers return the predicted label index directly.
+                results[metric.name] = metric.sample_level_fn(doc, responses[0] if responses else -1)
+            elif self.config.output_type == OutputType.LOGPROBS:
                 best_idx = max(range(len(responses)), key=lambda i: responses[i][0])
                 results[metric.name] = metric.sample_level_fn(doc, best_idx)
             else:
@@ -258,5 +312,5 @@ class MillTask(ABC):
 class ConfigurableTask(MillTask):
     """A MillTask fully driven by a MillTaskConfig (no subclassing needed)."""
 
-    def __init__(self, config: MillTaskConfig):
-        super().__init__(config)
+    def __init__(self, config: MillTaskConfig, seed: int = DEFAULT_SEED):
+        super().__init__(config, seed=seed)

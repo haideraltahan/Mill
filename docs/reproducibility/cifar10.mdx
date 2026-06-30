@@ -1,0 +1,59 @@
+---
+title: "CIFAR-10"
+description: "CIFAR-10 zero-shot image classification reproduced with Mill (CLIP and vision-language models)."
+---
+
+CIFAR-10 is a 10-class, 10K-image classification benchmark. Mill ships it in two renderings of the same data and runs whichever one your model supports:
+
+- **`cifar10`** — CLIP-style **zero-shot classification**: the image is scored against the 10 class names by image–text similarity, ensembling 18 prompt templates per class (classnames and templates copied verbatim from [clip\_benchmark](https://github.com/LAION-AI/CLIP_benchmark)).
+- **`cifar10_mcq`** — **generative multiple-choice** for vision-language models: the model sees the image and the 10 classes as lettered options (shuffled per image) and answers with a letter, which is parsed and graded.
+
+## Evaluation configuration
+
+| Hyperparameter | Value |
+| --- | --- |
+| Benchmark | `cifar10` (auto-picks `cifar10` for CLIP, `cifar10_mcq` for VLMs) |
+| Dataset | `haideraltahan/wds_cifar10` (`test`, 10,000 images) |
+| n-shots | `0` |
+| Task type | `ZERO_SHOT_CLASSIFICATION` (CLIP) / `MULTIPLE_CHOICE` generative (VLM) |
+| Metric | `acc` (top-1) / `cifar10_mcq_acc` |
+| Backend | open\_clip (`clip`) / HuggingFace VLM (`hf`) |
+
+## Reproduce
+
+```bash
+# CLIP-style zero-shot
+mill --output_dir ./results eval \
+  "clip[path=ViT-B-32,pretrained=laion2b_s34b_b79k]" cifar10
+
+# Vision-language model (generative MCQ)
+mill --output_dir ./results eval \
+  "Qwen/Qwen3-VL-2B-Instruct[dtype=bfloat16]" cifar10 --seed 42
+
+mill --output_dir ./results collect --metric acc
+```
+
+## Results
+
+<CardGroup cols={2}>
+  <Card title="CLIP — ViT-B-32 (laion2b)" icon="gauge">
+    **93.56%** ± 0.25 \
+    zero-shot, top-1
+  </Card>
+
+  <Card title="Qwen3-VL-2B-Instruct" icon="gauge">
+    **95.87%** ± 0.20 \
+    generative MCQ
+  </Card>
+</CardGroup>
+
+<Note>
+  Mill copies clip\_benchmark's CIFAR-10 class names and 18 zero-shot templates verbatim, so the `cifar10` task reproduces the clip\_benchmark zero-shot protocol. This CLIP checkpoint's headline published figure is **66.6%** zero-shot top-1 on **ImageNet-1k** (see the [ImageNet page](/docs/reproducibility/imagenet) and the [model card](https://huggingface.co/laion/CLIP-ViT-B-32-laion2B-s34B-b79K)); a per-dataset CIFAR-10 figure should be cross-checked against clip\_benchmark when adding new baselines.
+</Note>
+
+### Per-model results
+
+| Model | Rendering | Mill (top-1 `acc`) | Source |
+| --- | --- | --- | --- |
+| `ViT-B-32/laion2b_s34b_b79k` | CLIP zero-shot | **93.56%** ± 0.25 | [open\_clip](https://github.com/mlfoundations/open_clip) / [clip\_benchmark](https://github.com/LAION-AI/CLIP_benchmark) protocol |
+| `Qwen/Qwen3-VL-2B-Instruct` | Generative MCQ | **95.87%** ± 0.20 | Mill measurement (initial baseline) |

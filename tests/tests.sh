@@ -13,12 +13,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RESULTS_DIR="${SCRIPT_DIR}/results"
 mkdir -p "${RESULTS_DIR}"
 
-MODEL="Qwen/Qwen3-0.6B-Base"
+MODEL="Qwen/Qwen3-0.6B-Base[dtype=bfloat16]"
 
 mill --output_dir "${RESULTS_DIR}" eval \
-    "${MODEL}" \
-    mmlu_pro \
-    --model_args "dtype=bfloat16"
+    --models "${MODEL}" \
+    mmlu_pro
 
 # Show the aggregated table once the run finishes.
 mill --output_dir "${RESULTS_DIR}" collect --tasks math

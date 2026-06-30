@@ -3,6 +3,8 @@ __pycache__/
 *.py[codz]
 *$py.class
 tests/results/
+tests/scripts_log/
+tests/
 
 # C extensions
 *.so
@@ -220,6 +222,8 @@ __marimo__/
 
 # Local-only agent / editor config (not part of the repo or the Mintlify build)
 .mcp.json
-.claude/
+# Contributor skills are version-controlled and shipped; the rest of .claude/ is local-only.
+.claude/*
+!.claude/skills/
 .vscode/
 other_frameworks/

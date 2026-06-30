@@ -8,6 +8,7 @@ scored, mirroring lighteval's `mmlu_pro` task.
 from mill.api.instance import OutputType
 from mill.api.metrics import get_metric
 from mill.api.task import MillBenchmarkConfig, MillTaskConfig
+from mill.api.taxonomy import TaskType
 from mill.tasks.mmlu_pro.utils import mmlu_pro_prompt  # noqa: F401  registers `mmlu_pro_acc`
 
 mmlu_pro_task = MillTaskConfig(
@@ -20,7 +21,8 @@ mmlu_pro_task = MillTaskConfig(
     evaluation_splits=["test"],
     few_shots_split="validation",
     prompt_function=mmlu_pro_prompt,
-    output_type=OutputType.GENERATIVE,
+    task_type=TaskType.MULTIPLE_CHOICE,
+    output_type=OutputType.GENERATIVE,  # graded by CoT generation + answer-letter extraction
     generation_size=1024,  # allow for long CoT generations
     n_shots=0,  # zero-shot CoT (the prompt already instructs step-by-step reasoning)
     metrics=[get_metric("mmlu_pro_acc")],

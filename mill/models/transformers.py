@@ -1,7 +1,7 @@
 """HuggingFace Transformers model backend.
 
-Supports text-only and multimodal (vision/audio) models via AutoModelForCausalLM
-and AutoProcessor. Multimodal requests carry ChatMessages in Instance.arguments[0].
+Supports text-only (AutoModelForCausalLM) and vision-language (AutoModelForImageTextToText)
+models. Multimodal requests carry ChatMessages in Instance.arguments[0].
 """
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 
 import torch
 
-from mill.api.model import MillModel, ModelCapabilities
+from mill.api.model import GenerativeModel, ModelCapabilities
 from mill.api.registry import register_model
 from mill.models.base import is_multimodal_request
 
@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 @register_model("hf", "huggingface", "transformers")
-class TransformersModel(MillModel):
+class TransformersModel(GenerativeModel):
     """HuggingFace AutoModel backend.
 
     Config dict fields (opencompass style):
@@ -53,12 +53,6 @@ class TransformersModel(MillModel):
         self._path = path
         self._batch_size = batch_size  # None = auto; int = fixed
         self._use_chat_template = use_chat_template
-        self.capabilities = ModelCapabilities(
-            modalities=set(modalities or ["text"]),
-            max_context_length=max_context_length,
-            supports_logprobs=True,
-            supports_chat_template=True,
-        )
 
         torch_dtype = getattr(torch, dtype, torch.bfloat16)
         model_kwargs: dict = {
@@ -69,18 +63,51 @@ class TransformersModel(MillModel):
         if attn_implementation:
             model_kwargs["attn_implementation"] = attn_implementation
 
-        is_multimodal = bool(set(modalities or []) - {"text"}) if modalities else False
+        # Auto-detect whether this is a vision-language model by probing for a
+        # processor.  VL models (Qwen3VL, Qwen2VL, InternVL, LLaVA, etc.) need
+        # AutoModelForImageTextToText; text-only models use AutoModelForCausalLM.
+        # AutoProcessor.from_pretrained succeeds for text-only models too, but
+        # returns a bare tokenizer rather than a multimodal processor — a real
+        # processor exposes a nested ``.tokenizer``.
+        from transformers import AutoModelForCausalLM
+        try:
+            from transformers import AutoProcessor
+            processor = AutoProcessor.from_pretrained(path, trust_remote_code=trust_remote_code)
+        except (ValueError, KeyError, OSError, ImportError):
+            processor = None
 
-        if is_multimodal:
-            from transformers import AutoProcessor, AutoModelForCausalLM
-            self._processor = AutoProcessor.from_pretrained(path, trust_remote_code=trust_remote_code)
-            self._model = AutoModelForCausalLM.from_pretrained(path, **model_kwargs)
-            self._tokenizer = self._processor.tokenizer
+        if processor is not None and hasattr(processor, "tokenizer"):
+            # VL model — use ImageTextToText with causal-LM fallback.
+            self._processor = processor
+            self._tokenizer = processor.tokenizer
+            try:
+                from transformers import AutoModelForImageTextToText
+                self._model = AutoModelForImageTextToText.from_pretrained(path, **model_kwargs)
+            except (ValueError, KeyError):
+                self._model = AutoModelForCausalLM.from_pretrained(path, **model_kwargs)
+            # Infer modalities from processor when not explicitly provided.
+            if modalities is None:
+                inferred = {"text"}
+                if getattr(self._processor, "image_processor", None) is not None:
+                    inferred.add("image")
+                modalities = list(inferred)
         else:
-            from transformers import AutoTokenizer, AutoModelForCausalLM
-            self._tokenizer = AutoTokenizer.from_pretrained(path, trust_remote_code=trust_remote_code)
+            # Text-only model.  Reuse the bare tokenizer if AutoProcessor
+            # returned one, otherwise load it directly.
             self._processor = None
+            if processor is not None:
+                self._tokenizer = processor
+            else:
+                from transformers import AutoTokenizer
+                self._tokenizer = AutoTokenizer.from_pretrained(path, trust_remote_code=trust_remote_code)
             self._model = AutoModelForCausalLM.from_pretrained(path, **model_kwargs)
+
+        self.capabilities = ModelCapabilities(
+            modalities=set(modalities or ["text"]),
+            max_context_length=max_context_length,
+            supports_logprobs=True,
+            supports_chat_template=True,
+        )
 
         if self._tokenizer.pad_token is None:
             self._tokenizer.pad_token = self._tokenizer.eos_token
@@ -196,32 +223,44 @@ class TransformersModel(MillModel):
         return decoded
 
     def _decode_multimodal(self, batch: list["Instance"], max_new_tokens: int) -> list[str]:
-        results = []
+        # Process the whole batch in a single padded forward pass. Media is
+        # flattened across the batch in order; the processor matches each piece
+        # to the image/video/audio placeholders the chat template inserts.
+        texts: list[str] = []
+        images: list = []
+        videos: list = []
+        audios: list = []
         for req in batch:
             chat_msgs = req.arguments[0]
-            hf_messages = chat_msgs.to_hf_messages()
-            if self._use_chat_template:
-                text = self._processor.apply_chat_template(hf_messages, add_generation_prompt=True, tokenize=False)
-            else:
-                text = "\n".join(
-                    f"{m['role']}: {m['content']}" for m in hf_messages
-                )
-            images, videos, audios = chat_msgs.extract_media()
+            # VL models need proper image-token placement; always use the
+            # processor's chat template (even when use_chat_template=False
+            # for text-only models) because manual formatting can't insert
+            # the <|image_pad|> / <|vision_start|> tokens that VLMs expect.
+            texts.append(self._processor.apply_chat_template(
+                chat_msgs.to_hf_messages(),
+                add_generation_prompt=True,
+                tokenize=False,
+            ))
+            req_images, req_videos, req_audios = chat_msgs.extract_media()
+            images.extend(req_images)
+            videos.extend(req_videos)
+            audios.extend(req_audios)
 
-            proc_kwargs: dict = {"text": text, "return_tensors": "pt"}
-            if images:
-                proc_kwargs["images"] = images
-            if videos:
-                proc_kwargs["videos"] = videos
-            if audios:
-                proc_kwargs["audios"] = audios
+        proc_kwargs: dict = {"text": texts, "return_tensors": "pt", "padding": True}
+        if images:
+            proc_kwargs["images"] = images
+        if videos:
+            proc_kwargs["videos"] = videos
+        if audios:
+            proc_kwargs["audios"] = audios
 
-            inputs = self._processor(**proc_kwargs).to(self._model.device)
-            with torch.inference_mode():
-                out = self._model.generate(**inputs, max_new_tokens=max_new_tokens, do_sample=False)
-            input_len = inputs["input_ids"].shape[1]
-            results.append(self._tokenizer.decode(out[0][input_len:], skip_special_tokens=True))
-        return results
+        inputs = self._processor(**proc_kwargs).to(self._model.device)
+        with torch.inference_mode():
+            out = self._model.generate(**inputs, max_new_tokens=max_new_tokens, do_sample=False)
+        # Left-padding (set in __init__) makes the prompt length uniform, so the
+        # generated continuation starts at the same offset for every row.
+        input_len = inputs["input_ids"].shape[1]
+        return self._tokenizer.batch_decode(out[:, input_len:], skip_special_tokens=True)
 
     def cleanup(self) -> None:
         del self._model

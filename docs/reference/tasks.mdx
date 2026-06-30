@@ -5,19 +5,38 @@ description: "Built-in benchmarks and how to write custom tasks."
 
 ## Built-in benchmarks
 
-Mill is in **alpha** — two benchmarks ship today. Add your own with [custom tasks](#registering-custom-tasks).
+Mill is in **alpha**. Five benchmarks ship today, spanning text and vision. Add your own with [custom tasks](#registering-custom-tasks) or the [Contributing guide](/docs/contributing).
 
-| Benchmark | Task name(s) | Modality | Output type | Default n-shot | Metric |
-|---|---|---|---|---|---|
-| `mmlu` | `mmlu_<subject>` (57 subjects) | Text | `LOGPROBS` | 5 | `acc` |
-| `mmlu_pro` | `mmlu_pro` | Text | `GENERATIVE` (chain-of-thought) | 0 | `mmlu_pro_acc` |
+| Benchmark | Task name(s) | Modality | Task type | Default n-shot | Metric |
+| --- | --- | --- | --- | --- | --- |
+| `mmlu` | `mmlu_<subject>` (57 subjects) | Text | `MULTIPLE_CHOICE` (log-prob) | 5 | `acc` |
+| `mmlu_pro` | `mmlu_pro` | Text | `MULTIPLE_CHOICE` (generative CoT) | 0 | `mmlu_pro_acc` |
+| `cifar10` | `cifar10`, `cifar10_mcq` | Image | zero-shot / generative MCQ | 0 | `acc` / `cifar10_mcq_acc` |
+| `imagenet` | `imagenet`, `imagenet_mcq` | Image | zero-shot / generative MCQ | 0 | `acc` / `imagenet_mcq_acc` |
+| `mmmu_pro` | `mmmu_pro`, `mmmu_pro_clip` | Image \+ Text | generative CoT / zero-shot | 0 | `mmmu_pro_acc` / `acc` |
 
 Pass either the benchmark name (`mmlu`) or an individual task (`mmlu_abstract_algebra`) to `mill eval`. Browse everything interactively with `mill ls`.
 
-## Output types
+<Note>
+  The vision benchmarks ship in **two renderings** of the same data. The benchmark sets `pick_variant_by_model=True`, so Mill automatically runs the rendering your model supports: the **zero-shot** task for CLIP-style encoders (image↔text similarity) and the **generative multiple-choice** task for vision-language models (which answer with a letter). You pass the benchmark name; Mill picks the variant.
+</Note>
 
-| Type | When to use |
-|---|---|
+## Task types
+
+`task_type` is the **primary axis** of a task — it declares what the task asks and decides which model interface serves it. `output_type` is a secondary _scoring_ detail of the generative family only.
+
+| `task_type` | Served by | Notes |
+| --- | --- | --- |
+| `MULTIPLE_CHOICE` | LLM / VLM | Pick one option. Scored by generated answer letter (`output_type=GENERATIVE`) or per-choice log-probability (`output_type=LOGPROBS`). |
+| `GENERATIVE_QA` | LLM / VLM | Free-text generation; a scorer extracts/grades the answer. |
+| `PERPLEXITY` | LLM | Rolling log-likelihood over a sequence. |
+| `ZERO_SHOT_CLASSIFICATION` | CLIP-style encoder | Score an input against candidate text labels by embedding similarity. |
+| `SUPERVISED_CLASSIFICATION` | timm / fixed-head | Predict over a fixed pretrained label set (e.g. ImageNet-1k). |
+
+The matching **output types** for the generative family:
+
+| `output_type` | When to use |
+| --- | --- |
 | `GENERATIVE` | Free-text generation — model writes an answer and you extract it |
 | `LOGPROBS` | Multiple-choice — rank answer options by log-probability |
 | `PERPLEXITY` | Measure rolling log-probability of a document |
@@ -28,12 +47,14 @@ Define a task by creating a `MillTaskConfig` and exporting it in a `TASKS_TABLE`
 
 ```python
 from mill.api.instance import OutputType
-from mill.api.metrics import Metric
+from mill.api.metrics import get_metric
 from mill.api.task import Doc, MillTaskConfig
+from mill.api.taxonomy import TaskType
 
 def my_prompt(row: dict) -> Doc:
     return Doc(
         query=f"Answer the following: {row['question']}",
+        choices=["A", "B", "C", "D"],
         target_index=row["answer"],
     )
 
@@ -46,18 +67,15 @@ my_task = MillTaskConfig(
     evaluation_splits=["test"],
     few_shots_split="train",
     prompt_function=my_prompt,
-    output_type=OutputType.GENERATIVE,
-    generation_size=256,
-    stop_sequences=["\n\n"],
-    n_shots=0,
-    metrics=[Metric(
-        name="my_acc",
-        higher_is_better=True,
-        output_type=OutputType.GENERATIVE,
-        sample_level_fn=my_scorer,
-    )],
+    task_type=TaskType.MULTIPLE_CHOICE,
+    output_type=OutputType.LOGPROBS,
+    n_shots=5,
+    metrics=[get_metric("acc")],
     description="My custom task description.",
     categories=["reasoning"],
+    capabilities=["domain knowledge"],
+    paper_url="https://arxiv.org/abs/0000.00000",
+    approx_num_samples={"test": 1000},
 )
 
 TASKS_TABLE = [my_task]
@@ -66,18 +84,23 @@ TASKS_TABLE = [my_task]
 ### Key fields
 
 | Field | Type | Description |
-|---|---|---|
+| --- | --- | --- |
 | `name` | str | Unique task name used in CLI args |
 | `hf_repo` | str | HuggingFace dataset repo |
 | `hf_subset` | str | Dataset configuration / subset |
-| `evaluation_splits` | list[str] | Splits used for scoring |
+| `hf_builder` / `hf_data_files` | str / dict | For packaged builders (e.g. WebDataset exports): `hf_builder="webdataset"`, `hf_data_files={split: "hf://.../*.tar"}` |
+| `evaluation_splits` | list\[str\] | Splits used for scoring |
 | `few_shots_split` | str | Split from which few-shot examples are drawn |
 | `prompt_function` | callable | `(row: dict) -> Doc` |
-| `output_type` | OutputType | `GENERATIVE`, `LOGPROBS`, or `PERPLEXITY` |
+| `task_type` | TaskType | Primary axis (see table above). Inferred from `output_type` if omitted |
+| `output_type` | OutputType | `GENERATIVE`, `LOGPROBS`, or `PERPLEXITY` (generative family) |
+| `input_modalities` | list\[str\] | Modalities the task feeds the model, e.g. `["image", "text"]`. Models that can't ingest them are rejected |
+| `zeroshot_templates` | list\[str\] | Zero-shot classification: prompt templates with a `{c}` classname slot, ensembled per class |
 | `generation_size` | int | Max new tokens (generative only) |
-| `stop_sequences` | list[str] | Stop strings for generation |
+| `stop_sequences` | list\[str\] | Stop strings for generation |
 | `n_shots` | int | Default few-shot count |
-| `metrics` | list[Metric] | Scoring functions |
+| `metrics` | list\[Metric\] | Scoring functions |
+| `description`, `categories`, `capabilities`, `paper_url`, `approx_num_samples` | — | Documentation shown in `mill ls` and the docs |
 
 ## The Doc dataclass
 
@@ -86,19 +109,20 @@ TASKS_TABLE = [my_task]
 ```python
 @dataclass
 class Doc:
-    query: str                    # assembled text prompt
-    choices: list[str] | None     # answer options (LOGPROBS tasks)
-    target_index: int | str | None  # correct answer index or string
-    visuals: list | None          # PIL Images, paths, or URLs
-    audios: list | None           # audio paths or bytes
-    videos: list | None           # video paths
-    instruction: str | None       # optional system prompt
-    metadata: dict                # task-specific data
+    query: str                       # assembled text prompt
+    choices: list[str] | None        # answer options (MCQ / zero-shot labels)
+    target_index: int | list[int] | str | None  # gold index or gold letter/string
+    visuals: list | None             # PIL Images, paths, or URLs
+    audios: list | None              # audio paths or bytes
+    videos: list | None              # video paths
+    instruction: str | None          # optional system prompt
+    metadata: dict                   # task-specific data (ids, options, splits...)
+    task_name: str                   # owning task name
 ```
 
 ## Multimodal tasks
 
-Populate `Doc.visuals`, `Doc.audios`, or `Doc.videos` alongside `query`:
+Populate `Doc.visuals`, `Doc.audios`, or `Doc.videos` alongside `query`, and declare `input_modalities` so Mill only runs models that can ingest them:
 
 ```python
 def vqa_prompt(row: dict) -> Doc:
@@ -119,7 +143,7 @@ mill eval meta-llama/Meta-Llama-3-8B-Instruct my_task \
   --output_dir ./results
 ```
 
-Mill auto-discovers any file that exports a `TASKS_TABLE` list.
+Mill auto-discovers any file that exports a `TASKS_TABLE` list (task files inside `mill/tasks/` are discovered automatically).
 
 ## Defining a benchmark
 
@@ -132,8 +156,15 @@ my_benchmark = MillBenchmarkConfig(
     name="my_benchmark",
     task_names=["my_task_a", "my_task_b"],
     metric_names=["acc"],
-    weighted_aggregate=False,
+    weighted_aggregate=False,      # unweighted mean across tasks
+    pick_variant_by_model=False,   # True = task_names are alternative renderings, not subtasks
 )
 
 BENCHMARKS_TABLE = [my_benchmark]
 ```
+
+Set `pick_variant_by_model=True` when `task_names` are mutually-exclusive _renderings_ of the same benchmark (e.g. a CLIP zero-shot task and a VLM generative-MCQ task): Mill runs the single variant whose `task_type` the model supports, instead of aggregating them. See `mill/tasks/cifar10/task.py` for a complete example.
+
+<Note>
+  Adding a benchmark is a guided, end-to-end process — locating the source benchmark, mirroring how it scores, validating against the published number, and documenting it. See the [Contributing guide](/docs/contributing), which is backed by the `adding-a-benchmark` skill in the repo.
+</Note>

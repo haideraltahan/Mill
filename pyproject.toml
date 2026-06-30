@@ -31,6 +31,9 @@ dependencies = [
 [project.optional-dependencies]
 vllm = ["vllm>=0.4"]
 litellm = ["litellm>=1.30"]
+clip = ["open_clip_torch>=2.20"]          # CLIP-style zero-shot vision backend
+timm = ["timm>=0.9"]                       # supervised vision classification backend
+vision = ["open_clip_torch>=2.20", "timm>=0.9"]  # both vision backends
 video = ["decord>=0.6"]
 audio = ["librosa>=0.10"]
 code = ["evaluate>=0.4"]

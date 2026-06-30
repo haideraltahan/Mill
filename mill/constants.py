@@ -37,6 +37,14 @@ LOCK_DIR   = CACHE_DIR / "locks"
 DEFAULT_ROUND_VALUES = 4    # decimal places in stored metrics
 
 ##################################################################
+# REPRODUCIBILITY
+##################################################################
+
+DEFAULT_SEED = 42   # seeds every source of randomness in an eval (shuffles,
+                    # few-shot sampling, random-guess fallbacks). Override per
+                    # run with `mill eval ... --seed N`.
+
+##################################################################
 # MODEL / BATCHING
 ##################################################################
 

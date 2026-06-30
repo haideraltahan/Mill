@@ -16,7 +16,7 @@ pip install -e ".[dev]"
 The core package pulls in:
 
 | Dependency | Purpose |
-|---|---|
+| --- | --- |
 | `torch >= 2.2` | Tensor computation |
 | `transformers >= 4.40` | HF model loading |
 | `datasets >= 2.18` | HF dataset streaming |
@@ -37,6 +37,9 @@ pip install -e ".[vllm]"
 
 # LiteLLM backend — OpenAI, Anthropic, and 100+ API providers
 pip install -e ".[litellm]"
+
+# Vision backends — CLIP (open_clip) + timm
+pip install -e ".[vision]"   # or ".[clip]" / ".[timm]" individually
 
 # Video decoding (decord)
 pip install -e ".[video]"
@@ -65,7 +68,7 @@ If the TUI opens, your install is working.
 ## Environment variables
 
 | Variable | Default | Description |
-|---|---|---|
+| --- | --- | --- |
 | `MILL_OUTPUT_DIR` | `./mill_results` | Default output directory |
 | `MILL_CACHE_DIR` | `~/.cache/mill` | Config, SLURM jobs, logs |
 

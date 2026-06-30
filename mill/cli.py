@@ -10,8 +10,11 @@ Directory layout::
 
 Usage examples::
 
-    mill --output_dir /scratch/results eval meta-llama/Meta-Llama-3-8B-Instruct gsm8k,mmlu
-    mill --output_dir ./results eval configs/qwen/qwen2_5_vl_7b.py vqav2
+    mill --output_dir /scratch/results eval "meta-llama/Meta-Llama-3-8B-Instruct" gsm8k,mmlu
+    mill --output_dir ./results eval "configs/qwen/qwen2_5_vl_7b.py" vqav2
+    mill --output_dir ./results eval "clip[path=ViT-B-32,pretrained=laion2b_s34b_b79k]" cifar10
+    mill --output_dir ./results eval "Qwen/Qwen3-0.6B-Base[dtype=bfloat16]" mmlu_pro
+    mill --output_dir ./results eval "hf[path=meta-llama/Meta-Llama-3-8B-Instruct,dtype=bfloat16]" gsm8k
     mill --output_dir /scratch/results --cache_dir /home/user/.mill schedule llama3-8b gsm8k
     mill --output_dir /scratch/results collect
     mill ls
@@ -22,7 +25,7 @@ import logging
 from pathlib import Path  # still used in eval() for Path(model).exists()
 from typing import List, Optional, Union
 
-from mill.constants import CACHE_DIR, OUTPUT_DIR
+from mill.constants import CACHE_DIR, DEFAULT_SEED, OUTPUT_DIR
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logging.getLogger("httpx").setLevel(logging.WARNING)
@@ -53,42 +56,52 @@ class Mill:
 
     def eval(
         self,
-        model: str,
+        models: Union[str, List[str]],
         tasks: Union[str, List[str]],
-        model_args: str = "",
         task_paths: Optional[str] = None,
+        seed: int = DEFAULT_SEED,
     ):
         """Run evaluation locally.
 
         Args:
-            model: HF model ID, registry name (hf/vllm/litellm), or path to a
-                   Python config file (mill/models/configs/.../*.py).
+            models: Model spec(s). A string is treated as comma-separated.
+                    Each spec can be:
+                      - A plain HF model ID: ``"Qwen/Qwen3-0.6B"``
+                      - A registry name: ``"hf"``, ``"vllm"``, ``"clip"``, ``"litellm"``
+                      - A path to a Python config file (mill/models/configs/.../*.py)
+                      - Any of the above with inline model args in brackets:
+                        ``"clip[path=ViT-B-32,pretrained=laion2b_s34b_b79k]"``
+                        ``"Qwen/Qwen3-0.6B[dtype=bfloat16,batch_size=8]"``
             tasks: Task name(s). A string is treated as comma-separated.
                    e.g. "gsm8k,mmlu" or ["gsm8k", "mmlu"]
-            model_args: Extra key=value pairs forwarded to the model constructor,
-                        e.g. "dtype=bfloat16,batch_size=8".
             task_paths: Comma-separated extra directories to scan for custom tasks.
+            seed: Seed for all randomness (option shuffles, few-shot sampling,
+                  random-guess fallbacks), applied uniformly across every
+                  benchmark. Default 42.
         """
         import mill.tasks  # trigger built-in task auto-discovery
         from mill.pipeline import Pipeline
 
+        # Use bracket-aware split for models (commas inside [...] are model_args).
+        model_list = _split_models(models) if isinstance(models, str) else [str(m).strip() for m in models]
         task_list = _to_list(tasks)
         extra_paths = [p.strip() for p in task_paths.split(",")] if task_paths else None
 
-        if Path(model).exists():
-            from mill.models.loader import load_model_from_file
-            resolved_model = load_model_from_file(model)
-        else:
-            kw = _parse_kv(model_args)
-            resolved_model = {"type": model, **kw}
-
-        Pipeline(
-            model=resolved_model,
-            tasks=task_list,
-            output_dir=self.output_dir,
-            limit=self.limit,
-            task_paths=extra_paths,
-        ).run()
+        for model_spec in model_list:
+            resolved_model = _parse_model_spec(model_spec)
+            # If the base name (before any [...]) is an existing file, load from file.
+            base_name = model_spec.split("[")[0].strip()
+            if Path(base_name).exists():
+                from mill.models.loader import load_model_from_file
+                resolved_model = load_model_from_file(base_name)
+            Pipeline(
+                model=resolved_model,
+                tasks=task_list,
+                output_dir=self.output_dir,
+                limit=self.limit,
+                task_paths=extra_paths,
+                seed=seed,
+            ).run()
 
     # ── schedule ──────────────────────────────────────────────────────────────
 
@@ -421,10 +434,18 @@ class Mill:
             import textwrap
             cfg = get_task_config(name)
 
-            output_label = {
-                "generate_until": "Generative (free text)",
-                "loglikelihood": "Log-prob (MCQ)",
-                "loglikelihood_rolling": "Perplexity",
+            task_type_label = {
+                "generative_qa": "Generative QA",
+                "multiple_choice": "Multiple choice",
+                "perplexity": "Perplexity",
+                "zero_shot_classification": "Zero-shot classification",
+                "supervised_classification": "Supervised classification",
+            }.get(cfg.task_type.value, cfg.task_type.value)
+
+            scoring_label = {
+                "generate_until": "Generation (free text)",
+                "loglikelihood": "Log-probability",
+                "loglikelihood_rolling": "Rolling log-likelihood",
             }.get(cfg.output_type.value, cfg.output_type.value)
 
             rows: list[list[tuple[str, str]]] = []
@@ -443,13 +464,17 @@ class Mill:
                     R(("class:desc", f"  {wline}"))
                 R(("", ""))
 
-            KV("Output type", output_label)
+            from mill.api.taxonomy import GENERATIVE_TASK_TYPES
+
+            KV("Task type", task_type_label)
+            if cfg.task_type in GENERATIVE_TASK_TYPES:
+                KV("Scoring", scoring_label)  # how a generated response is graded
             KV("Eval splits", ", ".join(cfg.evaluation_splits))
             KV("Avail splits", ", ".join(cfg.hf_avail_splits))
             if cfg.few_shots_split:
                 KV("Few-shot split", cfg.few_shots_split)
             KV("Default n-shot", str(cfg.n_shots))
-            if cfg.output_type.value == "generate_until":
+            if cfg.task_type in GENERATIVE_TASK_TYPES and cfg.output_type.value == "generate_until":
                 if cfg.generation_size is not None:
                     KV("Max new tokens", str(cfg.generation_size))
                 if cfg.stop_sequences:
@@ -632,6 +657,31 @@ def _to_list(value: Union[str, list, None]) -> list:
     return [v.strip() for v in str(value).split(",")]
 
 
+def _split_models(models_str: str) -> list[str]:
+    """Split a comma-separated models string, respecting bracket nesting.
+
+    ``clip[path=x,pretrained=y],Qwen/Model`` → ``["clip[path=x,pretrained=y]", "Qwen/Model"]``
+    """
+    parts = []
+    depth = 0
+    current = []
+    for ch in models_str:
+        if ch == "[":
+            depth += 1
+            current.append(ch)
+        elif ch == "]":
+            depth -= 1
+            current.append(ch)
+        elif ch == "," and depth == 0:
+            parts.append("".join(current).strip())
+            current = []
+        else:
+            current.append(ch)
+    if current:
+        parts.append("".join(current).strip())
+    return [p for p in parts if p]
+
+
 def _parse_kv(s: str) -> dict:
     if not s:
         return {}
@@ -655,6 +705,26 @@ def _coerce(v: str):
     except ValueError:
         pass
     return v
+
+
+def _parse_model_spec(spec: str) -> dict:
+    """Parse a model spec string with optional inline args in brackets.
+
+    Examples:
+        "clip"                                  -> {"type": "clip"}
+        "clip[path=ViT-B-32,pretrained=x]"      -> {"type": "clip", "path": "ViT-B-32", "pretrained": "x"}
+        "Qwen/Qwen3-0.6B"                       -> {"type": "Qwen/Qwen3-0.6B"}
+        "Qwen/Qwen3-0.6B[dtype=bfloat16]"       -> {"type": "Qwen/Qwen3-0.6B", "dtype": "bfloat16"}
+    """
+    import re
+    m = re.match(r"^(.+?)\s*\[(.+)\]\s*$", spec)
+    if m:
+        model_type = m.group(1).strip()
+        args = _parse_kv(m.group(2))
+    else:
+        model_type = spec.strip()
+        args = {}
+    return {"type": model_type, **args}
 
 
 def main():

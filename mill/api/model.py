@@ -7,12 +7,18 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from mill.api.taxonomy import GENERATIVE_TASK_TYPES, TaskType
+
 if TYPE_CHECKING:
-    from mill.api.instance import Instance
+    from mill.api.instance import Instance, OutputType
 
 logger = logging.getLogger(__name__)
 
 from mill.constants import FALLBACK_STARTING_BS
+
+
+class UnsupportedTask(Exception):
+    """Raised when a model lacks the capability a task's TaskType requires."""
 
 
 def _is_oom(e: Exception) -> bool:
@@ -115,11 +121,49 @@ def _progress(desc: str, total: int):
 
 
 class MillModel(ABC):
-    """Abstract base class for all Mill model backends.
+    """Root base class for every Mill model backend.
+
+    ``MillModel`` only describes what is common to *all* backends — a name, its
+    modality/context capabilities, and cleanup. What a model can actually *do*
+    is declared by mixing in one or more capability interfaces:
+
+        ``GenerativeModel``        text/multimodal generation + log-prob scoring
+        ``ZeroShotClassifier``     CLIP-style zero-shot classification
+        ``SupervisedClassifier``   fixed-head supervised classification
+
+    The evaluator inspects ``supported_task_types`` (derived from which
+    interfaces a backend implements) to decide whether a model can run a task.
+    """
+
+    capabilities: ModelCapabilities = ModelCapabilities()
+
+    @property
+    @abstractmethod
+    def model_name(self) -> str:
+        """Canonical identifier used in output filenames and result tables."""
+
+    @property
+    def max_length(self) -> int:
+        return self.capabilities.max_context_length
+
+    @property
+    def supported_task_types(self) -> frozenset[TaskType]:
+        """Task types this model can serve, derived from its capability mixins."""
+        return class_supported_task_types(type(self))
+
+    def cleanup(self) -> None:
+        """Release GPU memory / close connections. Called after evaluation."""
+
+
+class GenerativeModel(MillModel):
+    """Capability interface for text/multimodal generative backends (LLMs/VLMs).
 
     Implement ``_generate_batch``, ``_loglikelihood_batch``, and
     ``_loglikelihood_rolling_single``. The public methods handle batching,
     result ordering, progress bars, and OOM recovery automatically.
+
+    Serves the generative task family: ``GENERATIVE_QA``, ``MULTIPLE_CHOICE``,
+    and ``PERPLEXITY``.
 
     Batch size behaviour
     --------------------
@@ -133,8 +177,6 @@ class MillModel(ABC):
     ``auto_batch_size = False`` with ``batch_size = <int>``
         Fixed size, no OOM retry.
     """
-
-    capabilities: ModelCapabilities = ModelCapabilities()
 
     @property
     def batch_size(self) -> int | None:
@@ -229,18 +271,6 @@ class MillModel(ABC):
     def _loglikelihood_rolling_single(self, request: "Instance") -> float:
         """Compute rolling log-probability for a single request."""
 
-    def cleanup(self) -> None:
-        """Release GPU memory / close connections. Called after evaluation."""
-
-    @property
-    @abstractmethod
-    def model_name(self) -> str:
-        """Canonical identifier used in output filenames and result tables."""
-
-    @property
-    def max_length(self) -> int:
-        return self.capabilities.max_context_length
-
     def _estimate_starting_batch_size(self) -> int:
         """Estimate a starting batch size from model memory and free GPU memory.
 
@@ -266,3 +296,91 @@ class MillModel(ABC):
             return min(bs, 512)
         except Exception:
             return FALLBACK_STARTING_BS
+
+
+class ZeroShotClassifier(MillModel):
+    """Capability interface for CLIP-style zero-shot classification backends.
+
+    Serves ``TaskType.ZERO_SHOT_CLASSIFICATION``: each request carries an input
+    (image/audio) and a list of candidate text labels; the backend returns the
+    index of the best-matching label per request.
+    """
+
+    @abstractmethod
+    def zero_shot_classify(self, requests: list["Instance"]) -> list[int]:
+        """Return the predicted label index for each request.
+
+        Each ``request.arguments`` is ``(media_or_context, candidate_labels)``.
+        Results are returned in the same order as ``requests``.
+        """
+
+
+class SupervisedClassifier(MillModel):
+    """Capability interface for fixed-head supervised classifiers.
+
+    Serves ``TaskType.SUPERVISED_CLASSIFICATION`` for vision-only (timm) and
+    audio-only models that predict over a fixed label set.
+    """
+
+    @abstractmethod
+    def classify(self, requests: list["Instance"]) -> list[int]:
+        """Return the predicted label index for each request, in input order."""
+
+
+def class_supported_task_types(cls: type) -> frozenset[TaskType]:
+    """Task types a model *class* can serve, from the capability mixins it derives.
+
+    Mirrors ``MillModel.supported_task_types`` but works on the class alone, so the
+    pipeline can pick a benchmark variant from a model config without loading weights.
+    """
+    caps: set[TaskType] = set()
+    if issubclass(cls, GenerativeModel):
+        caps |= set(GENERATIVE_TASK_TYPES)
+    if issubclass(cls, ZeroShotClassifier):
+        caps.add(TaskType.ZERO_SHOT_CLASSIFICATION)
+    if issubclass(cls, SupervisedClassifier):
+        caps.add(TaskType.SUPERVISED_CLASSIFICATION)
+    return frozenset(caps)
+
+
+def ensure_supported(
+    model: MillModel,
+    task_type: TaskType,
+    output_type: "OutputType",
+    required_modalities: "list[str] | None" = None,
+) -> None:
+    """Raise ``UnsupportedTask`` if ``model`` cannot run a task of this shape.
+
+    Three checks: (1) the model implements the capability interface the
+    ``task_type`` requires, (2) for generative tasks scored by log-probability,
+    the backend actually supports log-prob scoring, and (3) the model can ingest
+    the input modalities the task feeds it (e.g. a text-only LLM can't take the
+    images an image task supplies).
+    """
+    from mill.api.instance import OutputType
+
+    if task_type not in model.supported_task_types:
+        supported = ", ".join(sorted(t.value for t in model.supported_task_types)) or "nothing"
+        raise UnsupportedTask(
+            f"{type(model).__name__} ('{model.model_name}') supports [{supported}] "
+            f"but this task requires '{task_type.value}'."
+        )
+    if (
+        task_type in GENERATIVE_TASK_TYPES
+        and output_type in (OutputType.LOGPROBS, OutputType.PERPLEXITY)
+        and not model.capabilities.supports_logprobs
+    ):
+        raise UnsupportedTask(
+            f"{type(model).__name__} ('{model.model_name}') cannot do log-probability "
+            f"scoring ('{output_type.value}') required by this task."
+        )
+    if required_modalities:
+        missing = set(required_modalities) - set(model.capabilities.modalities)
+        if missing:
+            raise UnsupportedTask(
+                f"{type(model).__name__} ('{model.model_name}') cannot ingest input "
+                f"modalities {sorted(missing)} required by this task "
+                f"(it supports {sorted(model.capabilities.modalities)}). "
+                f"Load a model that handles them, e.g. a vision-language model with "
+                f"modalities including 'image'."
+            )

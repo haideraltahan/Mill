@@ -12,3 +12,5 @@ def _try_import(module: str) -> None:
 _try_import("mill.models.transformers")
 _try_import("mill.models.vllm")
 _try_import("mill.models.litellm")
+_try_import("mill.models.clip")
+_try_import("mill.models.timm")

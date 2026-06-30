@@ -1,0 +1,60 @@
+---
+title: "MMMU-Pro"
+description: "MMMU-Pro (standard, 10 options) multimodal multiple-choice reproduced with Mill."
+---
+
+MMMU-Pro is a robust, college-level **multimodal** benchmark: questions carry up to 7 images and 10 answer options (A–J). Mill runs the `standard (10 options)` config in two renderings of the same data:
+
+- **`mmmu_pro`** — **generative chain-of-thought** for vision-language models: the model sees the image(s) and lettered options, reasons step by step, and ends with `Answer: $LETTER`, which is extracted and graded by a faithful port of the [official MMMU-Pro grader](https://github.com/MMMU-Benchmark/MMMU/tree/main/mmmu-pro).
+- **`mmmu_pro_clip`** — a **CLIP zero-shot** rendering for image–text encoders: each option is scored as `question + option` against the (first) image by image–text similarity. CLIP sees one image and truncates to its 77-token context, so this is a deliberately weak read — it exists for CLIP-family coverage, not as a strong solver.
+
+## Evaluation configuration
+
+| Hyperparameter | Value |
+| --- | --- |
+| Benchmark | `mmmu_pro` (auto-picks `mmmu_pro` for VLMs, `mmmu_pro_clip` for CLIP) |
+| Dataset | `MMMU/MMMU_Pro`, `standard (10 options)` (`test`, ~1,730 samples) |
+| n-shots | `0` (zero-shot CoT) |
+| Task type | `MULTIPLE_CHOICE` generative (VLM) / `ZERO_SHOT_CLASSIFICATION` (CLIP) |
+| Metric | `mmmu_pro_acc` / `acc` |
+| Max new tokens | `1024` (VLM CoT) |
+| Backend | HuggingFace VLM (`hf`) / open\_clip (`clip`) |
+
+## Reproduce
+
+```bash
+# Vision-language model (generative chain-of-thought)
+mill --output_dir ./results eval \
+  "Qwen/Qwen3-VL-2B-Instruct[dtype=bfloat16]" mmmu_pro
+
+# CLIP zero-shot rendering
+mill --output_dir ./results eval \
+  "clip[path=ViT-B-32,pretrained=laion2b_s34b_b79k]" mmmu_pro
+
+mill --output_dir ./results collect --metric mmmu_pro_acc
+```
+
+## Results
+
+<CardGroup cols={2}>
+  <Card title="Qwen3-VL-2B-Instruct" icon="gauge">
+    **31.91%** ± 1.12 \
+    generative CoT
+  </Card>
+
+  <Card title="CLIP — ViT-B-32 (laion2b)" icon="gauge">
+    **17.86%** ± 0.92 \
+    zero-shot (near-chance)
+  </Card>
+</CardGroup>
+
+<Note>
+  There is no widely-published MMMU-Pro `standard` number for these exact checkpoints, so Mill's measurements are recorded as the **initial baselines**. For context, the similarly-sized [Qwen2.5-VL-3B reports ≈31.6% on MMMU-Pro](https://arxiv.org/pdf/2502.13923), consistent with Mill's Qwen3-VL-2B result. The CLIP rendering sits just above the 10-option chance rate (10%), as expected for a single-image, 77-token similarity read.
+</Note>
+
+### Per-model results
+
+| Model | Rendering | Mill (`mmmu_pro_acc` / `acc`) | Source |
+| --- | --- | --- | --- |
+| `Qwen/Qwen3-VL-2B-Instruct` | Generative CoT | **31.91%** ± 1.12 | Mill measurement (initial baseline) |
+| `ViT-B-32/laion2b_s34b_b79k` | CLIP zero-shot | **17.86%** ± 0.92 | Mill measurement (CLIP-family coverage) |

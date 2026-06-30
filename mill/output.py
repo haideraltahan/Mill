@@ -13,8 +13,8 @@ Cache layout::
           {task_name}_{n_shot}shot.f    # Per-sample results
       aggregate.csv                     # Long-format summary, one row per
                                         # (model, task, n_shot, metric):
-                                        #   model,benchmark,task,n_shot,
-                                        #   metric,performance,stderr
+                                        #   model,benchmark,task,task_type,
+                                        #   n_shot,metric,performance,stderr
 """
 from __future__ import annotations
 
@@ -45,6 +45,23 @@ def _stderr_of_mean(values: "pd.Series") -> float:
     if math.isnan(std):
         return 0.0
     return std / math.sqrt(n)
+
+
+# Canonical aggregate.csv column order; any extra columns are appended after.
+_AGGREGATE_COLUMNS = [
+    "model", "benchmark", "task", "task_type", "n_shot", "metric", "performance", "stderr",
+]
+
+
+def _order_aggregate_columns(df: "pd.DataFrame") -> "pd.DataFrame":
+    """Reorder aggregate columns to the canonical layout (stable across upserts).
+
+    Older ``aggregate.csv`` files predating a column (e.g. ``task_type``) get it
+    added with empty values so the on-disk schema stays consistent.
+    """
+    ordered = [c for c in _AGGREGATE_COLUMNS if c in df.columns]
+    extra = [c for c in df.columns if c not in _AGGREGATE_COLUMNS]
+    return df.reindex(columns=ordered + extra)
 
 
 class OutputHandler:
@@ -121,12 +138,23 @@ class OutputHandler:
 
     # ── Aggregation ───────────────────────────────────────────────────────────
 
-    def aggregate(self, model: str, task: str, n_shot: int, metric_names: list[str], benchmark: str = "") -> dict:
+    def aggregate(
+        self,
+        model: str,
+        task: str,
+        n_shot: int,
+        metric_names: list[str],
+        benchmark: str = "",
+        task_type: str = "",
+    ) -> dict:
         """Compute mean performance per metric over all samples.
 
         Writes one long-format row per metric to ``aggregate.csv`` — columns
-        ``model, benchmark, task, n_shot, metric, performance, stderr`` — so the
-        table generalises across benchmarks regardless of each metric's name.
+        ``model, benchmark, task, task_type, n_shot, metric, performance,
+        stderr`` — so the table generalises across benchmarks regardless of each
+        metric's name. ``task_type`` records the task's semantic shape (e.g.
+        ``zero_shot_classification`` vs ``multiple_choice``) so a score's
+        protocol is unambiguous when several models are compared on one task.
 
         Returns a ``{metric_name: mean, f"{metric_name}_stderr": stderr, ...}``
         dict for in-memory display.
@@ -149,6 +177,7 @@ class OutputHandler:
                 "model": model,
                 "benchmark": benchmark,
                 "task": task,
+                "task_type": task_type,
                 "n_shot": n_shot,
                 "metric": m,
                 "performance": performance,
@@ -165,6 +194,7 @@ class OutputHandler:
         metric_names: list[str],
         weighted: bool = True,
         benchmark: str = "",
+        task_type: str = "",
     ) -> dict:
         """Average per-subtask aggregate scores and store under group_name.
 
@@ -218,6 +248,7 @@ class OutputHandler:
                 "model": model,
                 "benchmark": bench,
                 "task": group_name,
+                "task_type": task_type,
                 "n_shot": n_shot,
                 "metric": m,
                 "performance": performance,
@@ -241,6 +272,7 @@ class OutputHandler:
             )
             agg = agg[~mask]
         agg = pd.concat([agg, new_df], ignore_index=True)
+        agg = _order_aggregate_columns(agg)
         agg.to_csv(self._aggregate_path, index=False)
         self._aggregate = agg
 

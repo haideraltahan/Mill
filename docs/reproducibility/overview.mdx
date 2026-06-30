@@ -3,34 +3,39 @@ title: "Overview"
 description: "How Mill reproduces published benchmark numbers, and a template for adding new ones."
 ---
 
-Mill aims to reproduce the numbers reported in model and benchmark papers. Each
-benchmark page in this section records the exact **evaluation configuration**
-(the hyperparameters that move scores), the command to reproduce it, and Mill's
-result side by side with the published figure.
+Mill aims to reproduce the numbers reported in model and benchmark papers. Each benchmark page in this section records the exact **evaluation configuration** (the hyperparameters that move scores), the command to reproduce it, and Mill's result side by side with the published figure.
 
 <Note>
-Mill writes accuracy as a fraction in `aggregate.csv` (e.g. `0.5378`); the tables
-in these pages show percentages to match how papers report them. The `±` column
-is the bootstrap standard error, in percentage points.
+  Mill writes accuracy as a fraction in `aggregate.csv` (e.g. `0.5378`); the tables in these pages show percentages to match how papers report them. The `±` column is the bootstrap standard error, in percentage points.
 </Note>
 
-## Validated benchmarks
+## Benchmarks
 
 <CardGroup cols={2}>
   <Card title="MMLU" icon="list-check" href="/docs/reproducibility/mmlu">
-    5-shot multiple-choice knowledge benchmark.
+    5-shot multiple-choice knowledge benchmark (text).
   </Card>
+
   <Card title="MMLU-Pro" icon="layer-group" href="/docs/reproducibility/mmlu-pro">
-    10-option chain-of-thought successor to MMLU (results pending).
+    10-option chain-of-thought successor to MMLU (text).
+  </Card>
+
+  <Card title="CIFAR-10" icon="image" href="/docs/reproducibility/cifar10">
+    Zero-shot image classification (CLIP and VLMs).
+  </Card>
+
+  <Card title="ImageNet-1k" icon="images" href="/docs/reproducibility/imagenet">
+    1000-class zero-shot image classification (run pending).
+  </Card>
+
+  <Card title="MMMU-Pro" icon="layer-group" href="/docs/reproducibility/mmmu_pro">
+    College-level multimodal multiple-choice (image \+ text).
   </Card>
 </CardGroup>
 
 ## Adding a new benchmark
 
-Create a new `.mdx` file under `docs/reproducibility/`, add it to the
-Reproducibility group in `docs.json`, and copy the block below. Replace the
-placeholders and fill the results table from the rollup row of your
-`aggregate.csv` (the row whose `task` equals the benchmark name, e.g. `mmlu,mmlu`).
+Create a new `.mdx` file under `docs/reproducibility/`, add it to the Reproducibility group in `docs.json`, and copy the block below. Replace the placeholders and fill the results table from the rollup row of your `aggregate.csv` (the row whose `task` equals the benchmark name, e.g. `mmlu,mmlu`).
 
 ````mdx
 ---
@@ -54,7 +59,7 @@ description: "<Benchmark> reproduced with Mill versus the published result."
 ## Reproduce
 
 ```bash
-mill --output_dir ./results eval <model> <task> --model_args dtype=bfloat16
+mill --output_dir ./results eval "<model>[dtype=bfloat16]" <task>
 mill --output_dir ./results collect --metric <metric>
 ```
 

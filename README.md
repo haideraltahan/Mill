@@ -1,144 +1,73 @@
 # Mill
 
-**Unified multi-modal evaluation framework** — one tool for text, image, video, and audio benchmarks.
+**One tool to evaluate any model on any modality.**
+
+Mill is a unified multi-modal evaluation framework for **text, image, video, and audio**
+benchmarks. Running a benchmark, reproducing a published number, and scaling across a
+cluster all work the same way — whatever the model, whatever the modality.
+
+## Why Mill
+
+The evaluation ecosystem is fragmented: text benchmarks live in one harness, vision in
+another, each with its own model abstraction, caching story, and result format. Stitching
+them together — and trusting the numbers — is the hard part.
+
+Mill brings the best ideas from across that ecosystem into a single, consistent interface:
+
+- **Multi-modal, one interface.** Text LLMs, vision-language models, CLIP-style encoders,
+  and supervised vision models all run through `mill eval`. Mill matches each model to the
+  task renderings it can actually serve.
+- **Reproducible by design.** Seeded, deterministic runs with bootstrap confidence
+  intervals — and a [reproducibility suite](https://pymill.com) that validates Mill's
+  scores against published baselines.
+- **Never recompute.** Feather output caching skips any `(model, task, n-shot)` job that
+  already finished, so reruns and sweeps are cheap.
+- **Scales to a cluster.** Built-in SLURM scheduling fans a `(models × tasks × n-shots)`
+  sweep across a cluster, then collects the results into one table.
+- **Easy to extend.** Add a new benchmark or model backend with a single Python file.
 
 ## Install
 
 ```bash
+git clone https://github.com/haideraltahan/Mill
 cd Mill
 pip install -e ".[dev]"
+```
 
-# Optional extras
-pip install -e ".[vllm]"     # vLLM backend
-pip install -e ".[litellm]"  # OpenAI / Anthropic API backend
-pip install -e ".[video]"    # video decoding (decord)
+Add the backends you need:
+
+```bash
+pip install -e ".[vllm]"        # vLLM — high-throughput local generation
+pip install -e ".[litellm]"     # OpenAI, Anthropic, and 100+ API providers
+pip install -e ".[vision]"      # CLIP (open_clip) + timm vision backends
+pip install -e ".[video]"       # video decoding (decord)
 ```
 
 ## Quick start
 
 ```bash
-# Text evaluation — local HF model
+# Text — local HF model on MMLU
+mill --output_dir ./results eval "Qwen/Qwen3-0.6B-Base[dtype=bfloat16]" mmlu
+
+# Vision — CLIP zero-shot on CIFAR-10
 mill --output_dir ./results eval \
-     meta-llama/Meta-Llama-3-8B-Instruct mmlu,mmlu_pro \
-     --model_args dtype=bfloat16,batch_size=8
+     "clip[path=ViT-B-32,pretrained=laion2b_s34b_b79k]" cifar10
 
-# Chain-of-thought benchmark — instruction-tuned model config file
-mill --output_dir ./results eval \
-     mill/models/configs/qwen/qwen2_5_7b_instruct.py mmlu_pro
-
-# API model (generative tasks only)
-mill --output_dir ./results eval litellm mmlu_pro \
-     --model_args model=gpt-4o
-
-# Distributed SLURM scheduling
-mill --output_dir /scratch/results schedule \
-     meta-llama/Meta-Llama-3-8B-Instruct mmlu \
-     --n_shots 0,5 --cluster auto
-
-# Collect results after jobs finish
-mill --output_dir /scratch/results collect --check
-
-# Browse registered benchmarks and tasks (interactive TUI)
+# Browse benchmarks and tasks (interactive TUI)
 mill ls
 ```
 
-## Architecture
+## Documentation
 
-```
-mill/
-├── api/
-│   ├── task.py        MillTaskConfig dataclass + MillTask base class
-│   ├── model.py       MillModel ABC (generate_until / loglikelihood / loglikelihood_rolling)
-│   ├── instance.py    Instance (one model request) + OutputType enum
-│   ├── metrics.py     Metric dataclass + @register_metric + bootstrap CI
-│   ├── registry.py    Central registry for models, tasks, metrics
-│   └── protocol.py    ChatMessages — multimodal message protocol
-├── models/
-│   ├── transformers.py  HuggingFace AutoModel (text + multimodal)
-│   ├── vllm.py          vLLM backend
-│   ├── litellm.py       OpenAI / Anthropic / LiteLLM API
-│   ├── loader.py        load_model_from_config / load_model_from_file
-│   └── configs/         Per-family Python config files (opencompass style)
-│       ├── qwen/
-│       ├── llama/
-│       └── internvl/
-├── tasks/
-│   ├── mmlu/task.py      MMLU (57 subjects, log-prob scoring)
-│   └── mmlu_pro/task.py  MMLU-Pro (10-option, generative chain-of-thought)
-├── output.py       Feather-based caching (never recompute completed jobs)
-├── evaluator.py    Core eval loop: requests → model → metrics → cache
-├── pipeline.py     Orchestrator: skip done → load model → run → display
-├── cli.py          mill eval / schedule / collect / ls
-└── scheduler/
-    ├── slurm.py        SLURM job array generation + submission
-    ├── clusters.yaml   Per-cluster queue limits, partitions, GPU types
-    └── template.sbatch SLURM array template
-```
+Full documentation — installation, guides, CLI/API reference, reproducibility, and
+contributing — lives at **[pymill.com](https://pymill.com)**.
 
-## Adding a new task
+## Contributing
 
-Create `mill/tasks/my_task/task.py`:
+Mill ships [Claude Code](https://claude.com/claude-code) skills that guide adding a
+benchmark or a model backend end to end (`.claude/skills/`). Start with the
+[Contributing guide](https://pymill.com/docs/contributing).
 
-```python
-from mill.api.instance import OutputType
-from mill.api.metrics import get_metric
-from mill.api.task import Doc, MillTaskConfig
+## License
 
-def my_prompt(row: dict) -> Doc:
-    return Doc(
-        query=f"Question: {row['question']}\nAnswer:",
-        target_index=row["answer"],
-    )
-
-TASKS_TABLE = [
-    MillTaskConfig(
-        name="my_task",
-        hf_repo="org/my_dataset",
-        evaluation_splits=["test"],
-        prompt_function=my_prompt,
-        output_type=OutputType.GENERATIVE,
-        generation_size=128,
-        metrics=[get_metric("exact_match")],
-    )
-]
-```
-
-Then: `mill --output_dir ./results eval hf my_task --model_args path=... --task_paths mill/tasks/my_task`
-
-## Adding a new model
-
-Create `mill/models/configs/my_family/my_model.py`:
-
-```python
-from mill.models.transformers import TransformersModel
-
-model = dict(
-    type=TransformersModel,
-    abbr="my-model-7b",
-    path="org/my-model-7b",
-    modalities=["text", "image"],
-    dtype="bfloat16",
-    max_context_length=32768,
-    run_cfg=dict(num_gpus=1, batch_size=4),
-)
-```
-
-Then: `mill --output_dir ./results eval mill/models/configs/my_family/my_model.py <tasks>`
-
-## Output cache
-
-All results are written to `output_dir` (default `./mill_results`, set with `--output_dir`).
-Configuration and SLURM files live separately under `cache_dir` (default `~/.cache/mill`).
-
-```
-<output_dir>/                        # e.g. ./mill_results
-  outputs/
-    {model_abbr}/
-      {task_name}_{n_shot}shot.f     # Per-sample results (Apache Feather)
-  aggregate.csv                       # Long-format summary: one row per
-                                      # (model, task, n_shot, metric) with
-                                      # columns metric, performance, stderr
-```
-
-Re-running `mill eval` with the same model + task skips inference automatically.
-Use `mill collect --check` to see which jobs are missing.
+MIT — see [LICENSE](LICENSE).

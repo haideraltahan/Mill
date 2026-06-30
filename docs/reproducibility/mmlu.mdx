@@ -3,16 +3,12 @@ title: "MMLU"
 description: "MMLU reproduced with Mill (Qwen3-0.6B-Base) versus the Qwen3 Technical Report."
 ---
 
-MMLU is run as a **5-shot multiple-choice** task. Each answer option is scored by
-its log-probability (`LOGPROBS` output type) and `acc` is the fraction of
-questions where the gold option ranks highest. The two hyperparameters that
-matter most for matching published numbers are the **5-shot** prompt and
-**log-prob** (rather than generative) scoring.
+MMLU is run as a **5-shot multiple-choice** task. Each answer option is scored by its log-probability (`LOGPROBS` output type) and `acc` is the fraction of questions where the gold option ranks highest. The two hyperparameters that matter most for matching published numbers are the **5-shot** prompt and **log-prob** (rather than generative) scoring.
 
 ## Evaluation configuration
 
 | Hyperparameter | Value |
-|---|---|
+| --- | --- |
 | Benchmark / task | `mmlu` (57 subtasks, averaged) |
 | n-shots | `5` |
 | Output type | `LOGPROBS` (rank options by log-probability) |
@@ -23,8 +19,7 @@ matter most for matching published numbers are the **5-shot** prompt and
 ## Reproduce
 
 ```bash
-mill --output_dir ./results eval Qwen/Qwen3-0.6B-Base mmlu \
-  --model_args dtype=bfloat16
+mill --output_dir ./results eval "Qwen/Qwen3-0.6B-Base[dtype=bfloat16]" mmlu
 
 mill --output_dir ./results collect --metric acc
 ```
@@ -35,88 +30,99 @@ mill --output_dir ./results collect --metric acc
 
 <CardGroup cols={3}>
   <Card title="Mill" icon="gauge">
-    **53.78%** ± 1.53
-    <br />measured
+    **53.78%** ± 1.53 \
+    measured
   </Card>
+
   <Card title="Qwen3 report" icon="book">
-    **52.81%**
-    <br />published baseline
+    **52.81%** \
+    published baseline
   </Card>
+
   <Card title="Difference" icon="scale-balanced">
-    **+0.97**
-    <br />within 1σ
+    **\+0.97** \
+    within 1σ
   </Card>
 </CardGroup>
 
 <Check>
-Mill reproduces the [Qwen3 Technical Report](https://arxiv.org/pdf/2505.09388) MMLU
-score for `Qwen/Qwen3-0.6B-Base` (**52.81%**) within one standard error.
+  Mill reproduces the [Qwen3 Technical Report](https://arxiv.org/pdf/2505.09388) MMLU score for `Qwen/Qwen3-0.6B-Base` (**52.81%**) within one standard error.
 </Check>
 
 ### Per-model results
 
 | Model | Mill (5-shot `acc`) | Reported | Source | Δ |
-|---|---|---|---|---|
-| `Qwen/Qwen3-0.6B-Base` | **53.78%** ± 1.53 | 52.81% | [Qwen3 Technical Report](https://arxiv.org/pdf/2505.09388) | +0.97 |
+| --- | --- | --- | --- | --- |
+| `Qwen/Qwen3-0.6B-Base` | **53.78%** ± 1.53 | 52.81% | [Qwen3 Technical Report](https://arxiv.org/pdf/2505.09388) | \+0.97 |
+
+<Note>
+  Other models measured with Mill (5-shot `acc`). Published MMLU numbers for these vary by eval protocol across sources, so they are recorded as Mill measurements pending a matched, like-for-like comparison:
+
+  | Model | Mill (5-shot `acc`) |
+  | --- | --- |
+  | `Qwen/Qwen3-1.7B-Base` | 65.10% ± 1.79 |
+  | `Qwen/Qwen3-1.7B` | 61.14% ± 1.70 |
+  | `Qwen/Qwen3-VL-2B-Instruct` | 63.75% ± 1.77 |
+</Note>
 
 <Accordion title="Per-subtask breakdown (57 tasks)">
-| Subtask | Acc (%) | ± |
-|---|---|---|
-| `mmlu_abstract_algebra` | 35.00 | 3.38 |
-| `mmlu_anatomy` | 44.44 | 3.03 |
-| `mmlu_astronomy` | 50.66 | 2.87 |
-| `mmlu_business_ethics` | 56.00 | 3.52 |
-| `mmlu_clinical_knowledge` | 54.34 | 2.17 |
-| `mmlu_college_biology` | 56.25 | 2.93 |
-| `mmlu_college_chemistry` | 46.00 | 3.53 |
-| `mmlu_college_computer_science` | 45.00 | 3.53 |
-| `mmlu_college_mathematics` | 41.00 | 3.49 |
-| `mmlu_college_medicine` | 52.02 | 2.69 |
-| `mmlu_college_physics` | 34.31 | 3.33 |
-| `mmlu_computer_security` | 72.00 | 3.18 |
-| `mmlu_conceptual_physics` | 50.21 | 2.31 |
-| `mmlu_econometrics` | 41.23 | 3.27 |
-| `mmlu_electrical_engineering` | 58.62 | 2.90 |
-| `mmlu_elementary_mathematics` | 45.77 | 1.81 |
-| `mmlu_formal_logic` | 41.27 | 3.11 |
-| `mmlu_global_facts` | 39.00 | 3.46 |
-| `mmlu_high_school_biology` | 70.32 | 1.84 |
-| `mmlu_high_school_chemistry` | 50.25 | 2.48 |
-| `mmlu_high_school_computer_science` | 61.00 | 3.46 |
-| `mmlu_high_school_european_history` | 66.06 | 2.61 |
-| `mmlu_high_school_geography` | 64.65 | 2.41 |
-| `mmlu_high_school_government_and_politics` | 65.28 | 2.43 |
-| `mmlu_high_school_macroeconomics` | 54.62 | 1.78 |
-| `mmlu_high_school_mathematics` | 35.93 | 2.07 |
-| `mmlu_high_school_microeconomics` | 58.40 | 2.26 |
-| `mmlu_high_school_physics` | 37.09 | 2.78 |
-| `mmlu_high_school_psychology` | 74.68 | 1.32 |
-| `mmlu_high_school_statistics` | 51.39 | 3.41 |
-| `mmlu_high_school_us_history` | 55.39 | 3.49 |
-| `mmlu_high_school_world_history` | 64.98 | 3.11 |
-| `mmlu_human_aging` | 53.81 | 3.35 |
-| `mmlu_human_sexuality` | 65.65 | 4.16 |
-| `mmlu_international_law` | 62.81 | 4.41 |
-| `mmlu_jurisprudence` | 61.11 | 4.71 |
-| `mmlu_logical_fallacies` | 60.74 | 3.84 |
-| `mmlu_machine_learning` | 42.86 | 4.70 |
-| `mmlu_management` | 67.96 | 4.62 |
-| `mmlu_marketing` | 79.49 | 2.65 |
-| `mmlu_medical_genetics` | 55.00 | 5.00 |
-| `mmlu_miscellaneous` | 61.05 | 1.74 |
-| `mmlu_moral_disputes` | 58.09 | 2.66 |
-| `mmlu_moral_scenarios` | 23.69 | 1.42 |
-| `mmlu_nutrition` | 59.48 | 2.81 |
-| `mmlu_philosophy` | 55.63 | 2.82 |
-| `mmlu_prehistory` | 53.40 | 2.78 |
-| `mmlu_professional_accounting` | 37.23 | 2.88 |
-| `mmlu_professional_law` | 34.88 | 1.22 |
-| `mmlu_professional_medicine` | 53.68 | 3.03 |
-| `mmlu_professional_psychology` | 50.33 | 2.02 |
-| `mmlu_public_relations` | 60.91 | 4.67 |
-| `mmlu_security_studies` | 61.63 | 3.11 |
-| `mmlu_sociology` | 69.15 | 3.27 |
-| `mmlu_us_foreign_policy` | 62.00 | 4.88 |
-| `mmlu_virology` | 46.39 | 3.88 |
-| `mmlu_world_religions` | 55.56 | 3.81 |
+  | Subtask | Acc (%) | ± |
+  | --- | --- | --- |
+  | `mmlu_abstract_algebra` | 35.00 | 3.38 |
+  | `mmlu_anatomy` | 44.44 | 3.03 |
+  | `mmlu_astronomy` | 50.66 | 2.87 |
+  | `mmlu_business_ethics` | 56.00 | 3.52 |
+  | `mmlu_clinical_knowledge` | 54.34 | 2.17 |
+  | `mmlu_college_biology` | 56.25 | 2.93 |
+  | `mmlu_college_chemistry` | 46.00 | 3.53 |
+  | `mmlu_college_computer_science` | 45.00 | 3.53 |
+  | `mmlu_college_mathematics` | 41.00 | 3.49 |
+  | `mmlu_college_medicine` | 52.02 | 2.69 |
+  | `mmlu_college_physics` | 34.31 | 3.33 |
+  | `mmlu_computer_security` | 72.00 | 3.18 |
+  | `mmlu_conceptual_physics` | 50.21 | 2.31 |
+  | `mmlu_econometrics` | 41.23 | 3.27 |
+  | `mmlu_electrical_engineering` | 58.62 | 2.90 |
+  | `mmlu_elementary_mathematics` | 45.77 | 1.81 |
+  | `mmlu_formal_logic` | 41.27 | 3.11 |
+  | `mmlu_global_facts` | 39.00 | 3.46 |
+  | `mmlu_high_school_biology` | 70.32 | 1.84 |
+  | `mmlu_high_school_chemistry` | 50.25 | 2.48 |
+  | `mmlu_high_school_computer_science` | 61.00 | 3.46 |
+  | `mmlu_high_school_european_history` | 66.06 | 2.61 |
+  | `mmlu_high_school_geography` | 64.65 | 2.41 |
+  | `mmlu_high_school_government_and_politics` | 65.28 | 2.43 |
+  | `mmlu_high_school_macroeconomics` | 54.62 | 1.78 |
+  | `mmlu_high_school_mathematics` | 35.93 | 2.07 |
+  | `mmlu_high_school_microeconomics` | 58.40 | 2.26 |
+  | `mmlu_high_school_physics` | 37.09 | 2.78 |
+  | `mmlu_high_school_psychology` | 74.68 | 1.32 |
+  | `mmlu_high_school_statistics` | 51.39 | 3.41 |
+  | `mmlu_high_school_us_history` | 55.39 | 3.49 |
+  | `mmlu_high_school_world_history` | 64.98 | 3.11 |
+  | `mmlu_human_aging` | 53.81 | 3.35 |
+  | `mmlu_human_sexuality` | 65.65 | 4.16 |
+  | `mmlu_international_law` | 62.81 | 4.41 |
+  | `mmlu_jurisprudence` | 61.11 | 4.71 |
+  | `mmlu_logical_fallacies` | 60.74 | 3.84 |
+  | `mmlu_machine_learning` | 42.86 | 4.70 |
+  | `mmlu_management` | 67.96 | 4.62 |
+  | `mmlu_marketing` | 79.49 | 2.65 |
+  | `mmlu_medical_genetics` | 55.00 | 5.00 |
+  | `mmlu_miscellaneous` | 61.05 | 1.74 |
+  | `mmlu_moral_disputes` | 58.09 | 2.66 |
+  | `mmlu_moral_scenarios` | 23.69 | 1.42 |
+  | `mmlu_nutrition` | 59.48 | 2.81 |
+  | `mmlu_philosophy` | 55.63 | 2.82 |
+  | `mmlu_prehistory` | 53.40 | 2.78 |
+  | `mmlu_professional_accounting` | 37.23 | 2.88 |
+  | `mmlu_professional_law` | 34.88 | 1.22 |
+  | `mmlu_professional_medicine` | 53.68 | 3.03 |
+  | `mmlu_professional_psychology` | 50.33 | 2.02 |
+  | `mmlu_public_relations` | 60.91 | 4.67 |
+  | `mmlu_security_studies` | 61.63 | 3.11 |
+  | `mmlu_sociology` | 69.15 | 3.27 |
+  | `mmlu_us_foreign_policy` | 62.00 | 4.88 |
+  | `mmlu_virology` | 46.39 | 3.88 |
+  | `mmlu_world_religions` | 55.56 | 3.81 |
 </Accordion>

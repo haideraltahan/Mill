@@ -11,12 +11,15 @@ Mill is a **unified multi-modal evaluation framework** that gives you one tool f
   <Card title="Quickstart" icon="rocket" href="/docs/quickstart">
     Run your first evaluation in minutes.
   </Card>
+
   <Card title="Installation" icon="box" href="/docs/installation">
     Install Mill and optional backend extras.
   </Card>
+
   <Card title="Task Reference" icon="list-check" href="/docs/reference/tasks">
     Browse supported benchmarks and task formats.
   </Card>
+
   <Card title="Model Reference" icon="cpu-chip" href="/docs/reference/models">
     Configure local HF models, vLLM, and API backends.
   </Card>
@@ -27,13 +30,13 @@ Mill is a **unified multi-modal evaluation framework** that gives you one tool f
 Mill borrows proven ideas from across the evaluation landscape:
 
 | Feature | Borrowed from |
-|---|---|
+| --- | --- |
 | Output caching (Feather, skip completed jobs) | unibench |
 | Multimodal `ChatMessages` protocol | lmms-eval |
 | Python-class task format | lighteval |
 | SLURM distributed scheduling | oellm-evals |
 | Per-family model config files | opencompass |
-| Bootstrap CI + metric registry | lighteval |
+| Bootstrap CI \+ metric registry | lighteval |
 
 ## Supported modalities
 
@@ -41,12 +44,15 @@ Mill borrows proven ideas from across the evaluation landscape:
   <Card title="Text" icon="text">
     MMLU and MMLU-Pro built in
   </Card>
+
   <Card title="Image" icon="image">
-    Multimodal models + custom tasks
+    CIFAR-10, ImageNet, and MMMU-Pro built in (CLIP, timm, and VLMs)
   </Card>
+
   <Card title="Video" icon="video">
     Custom tasks via decord
   </Card>
+
   <Card title="Audio" icon="waveform">
     Coming soon
   </Card>
@@ -57,14 +63,16 @@ Mill borrows proven ideas from across the evaluation landscape:
 ```bash
 # Text evaluation — local HF model
 mill --output_dir ./results eval \
-     meta-llama/Meta-Llama-3-8B-Instruct mmlu,mmlu_pro \
-     --model_args dtype=bfloat16,batch_size=8
+     "meta-llama/Meta-Llama-3-8B-Instruct[dtype=bfloat16,batch_size=8]" mmlu,mmlu_pro
 
 # Chain-of-thought benchmark — instruction-tuned model config file
 mill --output_dir ./results eval \
      mill/models/configs/qwen/qwen2_5_7b_instruct.py mmlu_pro
 
 # API model (OpenAI / Anthropic) — generative tasks only
-mill --output_dir ./results eval litellm mmlu_pro \
-     --model_args model=gpt-4o
+mill --output_dir ./results eval "litellm[model=gpt-4o]" mmlu_pro
+
+# Vision — CLIP zero-shot image classification
+mill --output_dir ./results eval \
+     "clip[path=ViT-B-32,pretrained=laion2b_s34b_b79k]" cifar10
 ```
