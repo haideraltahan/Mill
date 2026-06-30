@@ -1,0 +1,51 @@
+---
+title: "Clotho-AQA"
+description: "Clotho-AQA single-word audio question answering reproduced with Mill."
+---
+
+Clotho-AQA is a crowdsourced **audio** question-answering benchmark: each 15–30 s sound clip is paired with a question whose answer is a single word (frequently yes/no). An audio-language model listens to the clip and answers in one word; the answer is graded by **exact match** after lowercasing and stripping punctuation.
+
+Mill ports the lmms-eval [`clotho_aqa_test`](https://github.com/EvolvingLMMs-Lab/lmms-eval/tree/main/lmms_eval/tasks/clotho_aqa) setup: the `clotho_aqa_test_filtered` split, the single-word prompt, and case/punctuation-insensitive exact match. The dataset's other rendering (`clotho_asqa_test_v2`) is scored by a GPT-4o judge and is intentionally not ported — exact match is reproducible without an external judge.
+
+## Evaluation configuration
+
+| Hyperparameter | Value |
+| --- | --- |
+| Benchmark / task | `clotho_aqa` |
+| Dataset | `lmms-lab/ClothoAQA`, config `clotho_aqa` (`clotho_aqa_test_filtered`, ~1,442 samples) |
+| Prompt | `<question>` + `"Answer the question using a single word only."` |
+| n-shots | `0` |
+| Task type | `GENERATIVE_QA` |
+| Metric | `clotho_aqa_exact_match` (case/punctuation-insensitive) |
+| Max new tokens | `8` |
+| Backend | HuggingFace audio-language model (`hf`) |
+
+## Reproduce
+
+```bash
+mill --output_dir ./results eval \
+  mill/models/configs/qwen/qwen2_audio_7b.py clotho_aqa
+
+mill --output_dir ./results collect --metric clotho_aqa_exact_match
+```
+
+`Qwen/Qwen2-Audio-7B-Instruct` requires the audio extra (`pip install librosa soundfile`).
+
+## Results
+
+<CardGroup cols={2}>
+  <Card title="Qwen2-Audio-7B-Instruct" icon="gauge">
+    **73.44%** ± 1.16 \
+    single-word exact match
+  </Card>
+</CardGroup>
+
+<Note>
+  There is no widely-published exact-match number for Qwen2-Audio on the lmms-eval `clotho_aqa_test_filtered` split, so Mill's measurement is recorded as the **initial baseline**. For context, the original [Clotho-AQA paper](https://arxiv.org/abs/2204.09634) reports a binary-answer accuracy of ≈62.7% for its supervised LSTM baseline on the full (unfiltered) set; the zero-shot single-word setting here is a different, harder task and is not directly comparable.
+</Note>
+
+### Per-model results
+
+| Model | Mill (`clotho_aqa_exact_match`) | Source |
+| --- | --- | --- |
+| `Qwen/Qwen2-Audio-7B-Instruct` | **73.44%** ± 1.16 | Mill measurement (initial baseline) |

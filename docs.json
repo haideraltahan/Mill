@@ -49,7 +49,8 @@
           "docs/reproducibility/mmlu-pro",
           "docs/reproducibility/cifar10",
           "docs/reproducibility/imagenet",
-          "docs/reproducibility/mmmu_pro"
+          "docs/reproducibility/mmmu_pro",
+          "docs/reproducibility/clotho_aqa"
         ]
       },
       {

@@ -5,6 +5,25 @@ description: "New features, improvements, and fixes in Mill — newest first."
 
 Mill is in **alpha**. Releases are tracked below, newest first; APIs and task configs may still change between `0.x` versions.
 
+<Update label="2026-06-30" tags={["alpha"]} description="Audio evaluation">
+  ## Audio evaluation
+
+  Mill now evaluates **audio** models alongside text and image, through the same interface.
+
+  ### Benchmarks
+
+  - **Clotho-AQA** — single-word audio question answering, graded by case/punctuation-insensitive exact match (mirrors the lmms-eval `clotho_aqa_test` setup). See [Reproducibility → Clotho-AQA](/docs/reproducibility/clotho_aqa).
+
+  ### Model backends
+
+  - The HuggingFace backend (`hf`) now loads **audio-language models** (e.g. `Qwen/Qwen2-Audio-7B-Instruct`): it resolves audio architectures the image auto-class doesn't cover, infers the `audio` modality from the processor, and resamples/down-mixes waveforms to the model's expected rate.
+  - Audio columns are decoded with **soundfile/librosa** instead of `torchcodec`, so audio tasks run without a system FFmpeg.
+
+  ### Task API
+
+  - `Doc.audios` now flows through the multimodal context builder; set `input_modalities=["audio", "text"]` to require an audio-capable model.
+</Update>
+
 <Update label="2026-06-30" tags={["alpha"]} description="Vision benchmarks">
   ## Vision evaluation
 
