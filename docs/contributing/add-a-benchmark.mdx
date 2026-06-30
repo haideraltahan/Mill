@@ -1,0 +1,25 @@
+---
+title: "Add a benchmark"
+description: "Port a new benchmark into Mill — guided, validated, and documented."
+---
+
+Adding a benchmark is a guided, end-to-end process — not just "write some code." A benchmark is **done** only when its score is validated against the original implementation and documented with that comparison. The repo ships a **[Claude Code](https://claude.com/claude-code) skill** that walks you (or your agent) through every phase.
+
+<Note>
+  The skill lives in the repo at `.claude/skills/adding-a-benchmark/`. In Claude Code, type `/adding-a-benchmark`; you can also read it as plain Markdown.
+</Note>
+
+<Card title="adding-a-benchmark skill" icon="list-check" href="https://github.com/haideraltahan/Mill/blob/main/.claude/skills/adding-a-benchmark/SKILL.md">
+  The full, ordered checklist for porting a benchmark into Mill.
+</Card>
+
+## The process
+
+1. **Find the source of truth** — locate the benchmark's repo and paper, and read how its official grader computes the metric (extraction logic, tie-handling, prompt, n-shot, split). Record the published baseline you'll validate against.
+2. **Write the task** — `mill/tasks/<name>/task.py` exporting `TASKS_TABLE` (and `BENCHMARKS_TABLE`), with a prompt function, the right `task_type`, and a metric that mirrors the upstream grader. See the [Tasks reference](/docs/reference/tasks).
+3. **Validate** — run it and compare Mill's score to the published number; a gap means the prompt/split/grader differs, not that the number needs "fixing".
+4. **Document** — add a reproducibility page, an overview card, a tasks-table row, the `docs.json` nav entry, and a changelog bullet.
+
+## Documentation
+
+Docs are written as MDX under `docs/` and published to [**pymill.com**](https://pymill.com). Edit the relevant `.mdx` files and add new pages to `docs.json`; a maintainer publishes the live site. Keep the reproducibility numbers in sync with `aggregate.csv` — values are stored as fractions there and shown as percentages in the docs.

@@ -1,0 +1,21 @@
+---
+title: "Add a model backend"
+description: "Wire a new model backend into Mill — pick the interface, register, document."
+---
+
+Most new models need **no code** — a HuggingFace, vLLM, or LiteLLM model is just a config file (see the [Models reference](/docs/reference/models)). Write a backend only when the inference engine or model interface is genuinely new. The repo ships a **[Claude Code](https://claude.com/claude-code) skill** that walks you through it.
+
+<Note>
+  The skill lives in the repo at `.claude/skills/adding-a-model/`. In Claude Code, type `/adding-a-model`; you can also read it as plain Markdown.
+</Note>
+
+<Card title="adding-a-model skill" icon="cpu-chip" href="https://github.com/haideraltahan/Mill/blob/main/.claude/skills/adding-a-model/SKILL.md">
+  Pick the right capability interface, register it, and document it.
+</Card>
+
+## The process
+
+1. **Pick the capability interface** — `GenerativeModel` (LLMs/VLMs), `ZeroShotClassifier` (CLIP-style), or `SupervisedClassifier` (timm). It decides which `task_type`s the backend can serve.
+2. **Implement and register** — subclass the interface, implement only the batch hooks, and register it with `@register_model` and a cache-safe `model_name`. Declare honest `capabilities` so the evaluator rejects unsupported (model, task) pairs.
+3. **Make it loadable** — add a per-family config under `mill/models/configs/`, and gate optional dependencies with a clear `ImportError` plus a `pyproject.toml` extra.
+4. **Validate and document** — sanity-check on a benchmark its interface supports, then add a backend section to the [Models reference](/docs/reference/models).

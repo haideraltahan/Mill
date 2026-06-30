@@ -20,7 +20,8 @@
         "pages": [
           "docs/introduction",
           "docs/quickstart",
-          "docs/installation"
+          "docs/installation",
+          "docs/changelog"
         ]
       },
       {
@@ -54,13 +55,8 @@
       {
         "group": "Contributing",
         "pages": [
-          "docs/contributing"
-        ]
-      },
-      {
-        "group": "Changelog",
-        "pages": [
-          "docs/changelog"
+          "docs/contributing/add-a-benchmark",
+          "docs/contributing/add-a-model"
         ]
       }
     ]

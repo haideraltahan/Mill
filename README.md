@@ -66,7 +66,7 @@ contributing — lives at **[pymill.com](https://pymill.com)**.
 
 Mill ships [Claude Code](https://claude.com/claude-code) skills that guide adding a
 benchmark or a model backend end to end (`.claude/skills/`). Start with the
-[Contributing guide](https://pymill.com/docs/contributing).
+[Contributing guide](https://pymill.com/docs/contributing/add-a-benchmark).
 
 ## License
 

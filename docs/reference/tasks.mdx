@@ -5,7 +5,7 @@ description: "Built-in benchmarks and how to write custom tasks."
 
 ## Built-in benchmarks
 
-Mill is in **alpha**. Five benchmarks ship today, spanning text and vision. Add your own with [custom tasks](#registering-custom-tasks) or the [Contributing guide](/docs/contributing).
+Mill is in **alpha**. Five benchmarks ship today, spanning text and vision. Add your own with [custom tasks](#registering-custom-tasks) or the [Contributing guide](/docs/contributing/add-a-benchmark).
 
 | Benchmark | Task name(s) | Modality | Task type | Default n-shot | Metric |
 | --- | --- | --- | --- | --- | --- |
@@ -166,5 +166,5 @@ BENCHMARKS_TABLE = [my_benchmark]
 Set `pick_variant_by_model=True` when `task_names` are mutually-exclusive _renderings_ of the same benchmark (e.g. a CLIP zero-shot task and a VLM generative-MCQ task): Mill runs the single variant whose `task_type` the model supports, instead of aggregating them. See `mill/tasks/cifar10/task.py` for a complete example.
 
 <Note>
-  Adding a benchmark is a guided, end-to-end process — locating the source benchmark, mirroring how it scores, validating against the published number, and documenting it. See the [Contributing guide](/docs/contributing), which is backed by the `adding-a-benchmark` skill in the repo.
+  Adding a benchmark is a guided, end-to-end process — locating the source benchmark, mirroring how it scores, validating against the published number, and documenting it. See the [Contributing guide](/docs/contributing/add-a-benchmark), which is backed by the `adding-a-benchmark` skill in the repo.
 </Note>
