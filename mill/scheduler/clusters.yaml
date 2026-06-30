@@ -1,0 +1,49 @@
+# Mill cluster configuration
+#
+# This file is copied to ~/.cache/mill/clusters.yaml on first use.
+# Edit that copy to add your clusters — never edit this bundled template.
+#
+# Cluster selection:
+#   --cluster auto      hostname is matched against hostname_pattern (first match wins)
+#   --cluster <name>    use the named entry directly
+#
+# Available fields (all optional except where noted):
+#
+#   hostname_pattern  glob matched against socket.gethostname()  e.g. "login*.mycluster.org"
+#   partition         SLURM partition name                        e.g. "gpu"
+#   account           SLURM account / allocation                  e.g. "my_project"
+#   gpu_type          informational GPU label                     e.g. "A100"
+#   gpus_per_node     GPUs to request per node                    default: 1
+#   mem               memory per node                             e.g. "64G"
+#   queue_limit       max jobs in queue (used to throttle array)  default: 100
+#   max_array_len     max simultaneous array tasks                default: 50
+#   container_image   Singularity/Apptainer image path (or null)
+#   bind_paths        list of paths to bind into the container    default: []
+
+clusters:
+
+  # ── Example: add your own cluster ──────────────────────────────────────────
+  # my_cluster:
+  #   hostname_pattern: "login*.mycluster.org"
+  #   partition: "gpu"
+  #   account: "my_project"
+  #   gpu_type: "A100"
+  #   gpus_per_node: 1
+  #   mem: "64G"
+  #   queue_limit: 200
+  #   max_array_len: 100
+  #   container_image: null
+  #   bind_paths: []
+
+  # ── Generic fallback (used when no hostname_pattern matches) ────────────────
+  generic:
+    hostname_pattern: "*"
+    partition: "gpu"
+    account: ""
+    gpu_type: ""
+    gpus_per_node: 1
+    mem: "32G"
+    queue_limit: 100
+    max_array_len: 50
+    container_image: null
+    bind_paths: []
