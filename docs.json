@@ -46,7 +46,15 @@
           "docs/reproducibility/overview",
           "docs/reproducibility/mmlu",
           "docs/reproducibility/mmlu-pro",
-          "docs/reproducibility/imagenet"
+          "docs/reproducibility/cifar10",
+          "docs/reproducibility/imagenet",
+          "docs/reproducibility/mmmu_pro"
+        ]
+      },
+      {
+        "group": "Contributing",
+        "pages": [
+          "docs/contributing"
         ]
       },
       {

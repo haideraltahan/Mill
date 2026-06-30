@@ -5,16 +5,27 @@ description: "Configure HuggingFace, vLLM, and API model backends."
 
 ## Backend overview
 
-| Backend | Registry name(s) | Install extra | Use case |
-|---|---|---|---|
-| HuggingFace Transformers | `hf`, `huggingface`, `transformers` | (core) | Local models, multimodal |
-| vLLM | `vllm` | `.[vllm]` | High-throughput local inference |
-| LiteLLM | `litellm`, `openai`, `api` | `.[litellm]` | OpenAI, Anthropic, and 100+ API providers |
+| Backend | Registry name(s) | Install | Use case |
+| --- | --- | --- | --- |
+| HuggingFace Transformers | `hf`, `huggingface`, `transformers` | (core) | Local LLMs/VLMs, text \+ multimodal |
+| vLLM | `vllm` | `pip install -e ".[vllm]"` | High-throughput local generation |
+| LiteLLM | `litellm`, `openai`, `api` | `pip install -e ".[litellm]"` | OpenAI, Anthropic, and 100\+ API providers |
+| open\_clip (CLIP) | `clip`, `open_clip`, `openclip` | `pip install -e ".[clip]"` | Zero-shot image classification / retrieval |
+| timm | `timm`, `pytorch-image-models` | `pip install -e ".[timm]"` | Supervised vision classification (fixed head) |
+
+### Which backend serves which tasks
+
+A model can only run tasks whose `task_type` its interface supports — Mill rejects mismatches up front with a clear error rather than producing wrong numbers.
+
+| Backend | Task types it serves | When to use it |
+| --- | --- | --- |
+| HF / vLLM | `GENERATIVE_QA`, `MULTIPLE_CHOICE`, `PERPLEXITY` | Any LLM or VLM, text or multimodal. vLLM when you want throughput; HF for the widest model coverage and multimodal processors. |
+| LiteLLM | `GENERATIVE_QA`, `MULTIPLE_CHOICE` (generative only) | Hosted API models. **Generative tasks only** — no log-prob/perplexity over an API. |
+| open\_clip | `ZERO_SHOT_CLASSIFICATION` | CLIP-family image–text models for zero-shot classification (e.g. CIFAR-10, ImageNet, the `*_clip` task variants). |
+| timm | `SUPERVISED_CLASSIFICATION` | Vision models with a fixed pretrained head (e.g. ResNet on ImageNet-1k). |
 
 <Note>
-LiteLLM (API) models support **generative tasks only** — log-probability and
-perplexity scoring aren't available over an API. Use them with generative
-benchmarks like `mmlu_pro`, not log-prob ones like `mmlu`.
+  LiteLLM (API) models support **generative tasks only** — log-probability and perplexity scoring aren't available over an API. Use them with generative benchmarks like `mmlu_pro`, not log-prob ones like `mmlu`.
 </Note>
 
 ## Specifying a model
@@ -27,10 +38,12 @@ mill eval meta-llama/Meta-Llama-3-8B-Instruct mmlu
 
 Mill infers `type=hf` when the argument is a HuggingFace model path.
 
-### By backend name + model_args
+### By backend name with inline args
+
+Pass model arguments inline in brackets, `key=value` separated by commas. Quote the spec so your shell doesn't interpret the brackets:
 
 ```bash
-mill eval litellm mmlu_pro --model_args model=gpt-4o
+mill eval "litellm[model=gpt-4o]" mmlu_pro
 ```
 
 ### By Python config file
@@ -45,14 +58,14 @@ Mill calls `load_model_from_file()` on the path and uses the returned dict.
 
 ## HuggingFace Transformers
 
-Supports text-only and multimodal models via `AutoModelForCausalLM` + `AutoProcessor`.
+Supports text-only and multimodal models via `AutoModelForCausalLM` \+ `AutoProcessor`.
 
-### model_args
+### Inline args
 
 | Key | Type | Default | Description |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `path` | str | required | HF model ID or local path |
-| `modalities` | list[str] | `["text"]` | Modalities handled, e.g. `["text", "image", "video", "audio"]`. Set via a config file — a list can't be passed through `--model_args` |
+| `modalities` | list\[str\] | `["text"]` | Modalities handled, e.g. `["text", "image", "video", "audio"]`. Set via a config file — a list can't be passed inline in brackets |
 | `dtype` | str | `bfloat16` | `bfloat16` / `float16` / `float32` |
 | `device_map` | str | `auto` | `auto` / `cuda` / `cpu` |
 | `max_context_length` | int | `4096` | Token budget |
@@ -64,8 +77,7 @@ Supports text-only and multimodal models via `AutoModelForCausalLM` + `AutoProce
 ### Example
 
 ```bash
-mill eval hf mmlu \
-  --model_args path=meta-llama/Meta-Llama-3-8B-Instruct,dtype=bfloat16,batch_size=4 \
+mill eval "hf[path=meta-llama/Meta-Llama-3-8B-Instruct,dtype=bfloat16,batch_size=4]" mmlu \
   --output_dir ./results
 ```
 
@@ -76,12 +88,11 @@ mill eval hf mmlu \
 High-throughput inference backend. Requires `pip install -e ".[vllm]"`.
 
 ```bash
-mill eval vllm mmlu \
-  --model_args path=meta-llama/Meta-Llama-3-8B-Instruct,dtype=bfloat16 \
+mill eval "vllm[path=meta-llama/Meta-Llama-3-8B-Instruct,dtype=bfloat16]" mmlu \
   --output_dir ./results
 ```
 
-vLLM-specific `model_args`: `gpu_memory_utilization` (default `0.9`), `tensor_parallel_size` (default `1`), and `max_model_len` (override the model's max sequence length).
+vLLM-specific args: `gpu_memory_utilization` (default `0.9`), `tensor_parallel_size` (default `1`), and `max_model_len` (override the model's max sequence length).
 
 ---
 
@@ -91,26 +102,74 @@ Wraps any OpenAI-compatible API. Requires `pip install -e ".[litellm]"`.
 
 ```bash
 # OpenAI
-OPENAI_API_KEY=sk-... mill eval litellm mmlu_pro \
-  --model_args model=gpt-4o \
+OPENAI_API_KEY=sk-... mill eval "litellm[model=gpt-4o]" mmlu_pro \
   --output_dir ./results
 
 # Anthropic
-ANTHROPIC_API_KEY=sk-ant-... mill eval litellm mmlu_pro \
-  --model_args model=claude-3-5-sonnet-20241022 \
+ANTHROPIC_API_KEY=sk-ant-... mill eval "litellm[model=claude-3-5-sonnet-20241022]" mmlu_pro \
   --output_dir ./results
 ```
 
-Pass any LiteLLM completion parameter through `model_args`. API models run
-**generative tasks only** (e.g. `mmlu_pro`) — log-prob benchmarks like `mmlu`
-aren't supported over an API.
+Pass any LiteLLM completion parameter as an inline arg. API models run **generative tasks only** (e.g. `mmlu_pro`) — log-prob benchmarks like `mmlu` aren't supported over an API.
+
+---
+
+## open\_clip (CLIP)
+
+CLIP-style zero-shot image classification via [open\_clip](https://github.com/mlfoundations/open_clip). Each request carries an image and candidate text labels; the model returns the best-matching label by image–text cosine similarity, ensembling the task's prompt templates per class.
+
+**Requirements:** `pip install -e ".[clip]"` (or `.[vision]` for CLIP \+ timm).
+
+**When to use:** zero-shot image benchmarks (`cifar10`, `imagenet`) and the CLIP renderings of multimodal MCQ benchmarks (`mmmu_pro_clip`). Use a vision-language model through the HF/vLLM backends instead if you want generated, instruction-style answers.
+
+```bash
+mill eval "clip[path=ViT-B-32,pretrained=laion2b_s34b_b79k]" cifar10 \
+  --output_dir ./results
+```
+
+### Inline args
+
+| Key | Type | Default | Description |
+| --- | --- | --- | --- |
+| `path` | str | required | open\_clip architecture name, e.g. `ViT-B-32` |
+| `pretrained` | str | — | open\_clip weights tag, e.g. `laion2b_s34b_b79k` |
+| `batch_size` | int | `64` | Images per forward pass |
+| `prompt_template` | str | `"a photo of a {c}."` | Fallback template when a task sets none |
+| `max_context_length` | int | `77` | CLIP text context length |
+
+<Note>
+  `path` \+ `pretrained` together form the model identity used for output caching, so two weight sets of the same architecture stay distinct in your results.
+</Note>
+
+---
+
+## timm
+
+Vision-only supervised classification via [timm](https://github.com/huggingface/pytorch-image-models). The model predicts over its fixed pretrained head, so the task's labels must use the same class space (e.g. ImageNet-1k).
+
+**Requirements:** `pip install -e ".[timm]"` (or `.[vision]` for CLIP \+ timm).
+
+**When to use:** classic supervised vision baselines (e.g. a ResNet on ImageNet). Unlike CLIP, it does not score against arbitrary text labels — predictions are an argmax over the model's built-in classes.
+
+```bash
+mill eval "timm[path=resnet50.a1_in1k]" imagenet \
+  --output_dir ./results
+```
+
+### Inline args
+
+| Key | Type | Default | Description |
+| --- | --- | --- | --- |
+| `path` | str | required | Any timm model name, e.g. `resnet50.a1_in1k` |
+| `pretrained` | bool | `true` | Load pretrained weights |
+| `batch_size` | int | `64` | Images per forward pass |
+| `num_classes` | int | model default | Override the classifier head size |
 
 ---
 
 ## Python config files
 
-Config files let you version-control exact model settings and share them across runs.
-Place them anywhere and pass the path to `mill eval`.
+Config files let you version-control exact model settings and share them across runs. Place them anywhere and pass the path to `mill eval`.
 
 ```python
 # my_model.py — returned dict mirrors TransformersModel.__init__ kwargs
@@ -129,7 +188,7 @@ model = {
 Built-in configs live under `mill/models/configs/`:
 
 | Family | Path |
-|---|---|
+| --- | --- |
 | Qwen2.5-VL | `mill/models/configs/qwen/` |
 | InternVL | `mill/models/configs/internvl/` |
 | Llama | `mill/models/configs/llama/` |
@@ -138,10 +197,7 @@ Built-in configs live under `mill/models/configs/`:
 
 ## Writing a custom backend
 
-Subclass `MillModel` and register it. Implement the three batch hooks plus the
-`model_name` property — the base class wraps them with batching, progress bars,
-and automatic OOM retry, exposing the public `generate_until`, `loglikelihood`,
-and `loglikelihood_rolling` methods the evaluator calls:
+Subclass `MillModel` and register it. Implement the three batch hooks plus the `model_name` property — the base class wraps them with batching, progress bars, and automatic OOM retry, exposing the public `generate_until`, `loglikelihood`, and `loglikelihood_rolling` methods the evaluator calls:
 
 ```python
 from mill.api.model import MillModel, ModelCapabilities

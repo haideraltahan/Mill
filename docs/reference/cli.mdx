@@ -12,39 +12,52 @@ mill [GLOBAL FLAGS] <subcommand> [SUBCOMMAND FLAGS]
 ```
 
 | Flag | Default | Description |
-|---|---|---|
+| --- | --- | --- |
 | `--output_dir` | `./mill_results` | Directory where Feather result files are written |
 | `--cache_dir` | `~/.cache/mill` | Directory for `clusters.yaml`, SLURM job CSVs, and logs |
 | `--limit` | — | Cap samples per task (useful for smoke tests) |
 
 ## mill eval
 
-Run evaluation locally on a single model.
+Run evaluation locally on one or more models.
 
 ```bash
-mill [GLOBAL] eval <model> <tasks> [--model_args KEY=VAL,...] [--task_paths DIR,...]
+mill [GLOBAL] eval <models> <tasks> [--task_paths DIR,...] [--seed N]
 ```
 
-| Argument | Description |
-|---|---|
-| `model` | HF model ID (`meta-llama/Meta-Llama-3-8B-Instruct`), backend name (`litellm`), or path to a Python config file |
-| `tasks` | Comma-separated task or benchmark names (`mmlu,mmlu_pro`) |
-| `--model_args` | Extra `key=value` pairs forwarded to the model constructor |
-| `--task_paths` | Comma-separated extra directories to scan for custom tasks |
+| Argument | Default | Description |
+| --- | --- | --- |
+| `models` | required | Comma-separated model spec(s). Each spec is a HF model ID (`meta-llama/Meta-Llama-3-8B-Instruct`), a backend name (`hf`, `vllm`, `clip`, `litellm`, `timm`), or a path to a Python config file — optionally with inline args in brackets |
+| `tasks` | required | Comma-separated task or benchmark names (`mmlu,mmlu_pro`) |
+| `--task_paths` | — | Comma-separated extra directories to scan for custom tasks |
+| `--seed` | `42` | Seed for all randomness (option shuffles, few-shot sampling, random-guess fallbacks) |
+
+### Inline model args
+
+Pass model arguments inline in brackets, `key=value` separated by commas — there is no `--model_args` flag. Quote the spec so your shell doesn't expand the brackets:
+
+```text
+"clip[path=ViT-B-32,pretrained=laion2b_s34b_b79k]"
+"Qwen/Qwen3-0.6B-Base[dtype=bfloat16,batch_size=8]"
+"litellm[model=gpt-4o]"
+```
+
+A list-valued arg (e.g. `modalities`) can't be expressed inline — use a [Python config file](/docs/reference/models#python-config-files) for those.
 
 ### Examples
 
 ```bash
 # Local HF model
-mill --output_dir ./results eval meta-llama/Meta-Llama-3-8B-Instruct mmlu \
-  --model_args dtype=bfloat16,batch_size=8
+mill --output_dir ./results eval "meta-llama/Meta-Llama-3-8B-Instruct[dtype=bfloat16,batch_size=8]" mmlu
 
 # Python config file (instruction-tuned model + chain-of-thought benchmark)
 mill --output_dir ./results eval mill/models/configs/qwen/qwen2_5_7b_instruct.py mmlu_pro
 
+# CLIP zero-shot vision benchmark
+mill --output_dir ./results eval "clip[path=ViT-B-32,pretrained=laion2b_s34b_b79k]" cifar10
+
 # API model — generative tasks only (no log-prob), so use mmlu_pro not mmlu
-mill --output_dir ./results eval litellm mmlu_pro \
-  --model_args model=gpt-4o
+mill --output_dir ./results eval "litellm[model=gpt-4o]" mmlu_pro
 
 # Smoke test — first 50 samples only
 mill --output_dir ./results --limit 50 eval meta-llama/Meta-Llama-3-8B-Instruct mmlu
@@ -59,7 +72,7 @@ mill [GLOBAL] schedule <models> <tasks> [FLAGS]
 ```
 
 | Argument | Default | Description |
-|---|---|---|
+| --- | --- | --- |
 | `models` | required | Comma-separated model IDs or list |
 | `tasks` | required | Comma-separated task names |
 | `--n_shots` | `0` | Comma-separated n-shot values to sweep |
@@ -72,16 +85,14 @@ mill [GLOBAL] schedule <models> <tasks> [FLAGS]
 
 ## mill collect
 
-Display aggregated performance and check for missing jobs. Results are read from
-the long-format `aggregate.csv` (one row per `model, task, n_shot, metric` with
-`performance` and `stderr` columns), so scores compare across any benchmark.
+Display aggregated performance and check for missing jobs. Results are read from the long-format `aggregate.csv` (one row per `model, task, n_shot, metric` with `performance` and `stderr` columns), so scores compare across any benchmark.
 
 ```bash
 mill [GLOBAL] collect [--models M,...] [--tasks T,...] [--metric METRIC] [--n_shots N,...]
 ```
 
 | Flag | Default | Description |
-|---|---|---|
+| --- | --- | --- |
 | `--models` | all | Filter to specific model(s) |
 | `--tasks` | all | Filter to specific task(s) |
 | `--metric` | all | Restrict the table to one metric name (e.g. `acc`, `exact_match`); default shows every metric's `performance` |
@@ -97,7 +108,7 @@ mill ls
 ```
 
 | Key | Action |
-|---|---|
+| --- | --- |
 | `↑` / `↓` | Navigate list |
 | `Tab` / `Shift+Tab` / `←` / `→` | Switch tabs |
 | `Shift+↑` / `Shift+↓` | Scroll detail panel |

@@ -5,7 +5,7 @@ description: "Run your first evaluation in under five minutes."
 
 ## Prerequisites
 
-- Python 3.10+
+- Python 3.10\+
 - A GPU (for local HF/vLLM models) or an API key (for LiteLLM backends)
 
 ## 1. Install
@@ -17,8 +17,7 @@ pip install -e ".[dev]"
 ## 2. Run a text evaluation
 
 ```bash
-mill eval meta-llama/Meta-Llama-3-8B-Instruct mmlu \
-  --model_args dtype=bfloat16,batch_size=8 \
+mill eval "meta-llama/Meta-Llama-3-8B-Instruct[dtype=bfloat16,batch_size=8]" mmlu \
   --output_dir ./results
 ```
 
@@ -32,7 +31,7 @@ mill --output_dir ./results collect --metric acc
 
 The `collect` command renders a table of scores in your terminal. Pass `--metric` to choose which metric to show — MMLU reports `acc`:
 
-```
+```text
 Mill results — performance (acc)
 ┌─────────────────────────────────────┬────────┐
 │ model                               │ mmlu   │
@@ -55,12 +54,15 @@ This opens a full-screen TUI browser. Use `↑ ↓` to navigate, `Tab` to switch
   <Card title="Text evaluation guide" href="/docs/guides/text-evaluation">
     Few-shot, custom metrics, and n-shot sweeps.
   </Card>
+
   <Card title="Vision evaluation guide" href="/docs/guides/vision-evaluation">
     Multimodal models with image/video inputs.
   </Card>
+
   <Card title="Distributed scheduling" href="/docs/guides/distributed">
     Scale across a SLURM cluster.
   </Card>
+
   <Card title="CLI reference" href="/docs/reference/cli">
     Full flag documentation.
   </Card>
