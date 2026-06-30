@@ -14,6 +14,27 @@ from mill.constants import DEFAULT_SEED
 logger = logging.getLogger(__name__)
 
 
+def _disable_audio_decoding(ds):
+    """Turn off ``datasets`` audio decoding so rows carry raw ``{bytes, path}``.
+
+    ``datasets`` ≥5 decodes ``Audio`` columns with ``torchcodec`` (which needs a
+    system FFmpeg). Mill instead lets the model backend decode the waveform with
+    soundfile/librosa, so we cast every ``Audio`` column to ``decode=False`` and
+    avoid that dependency. No-op for datasets without an audio feature.
+    """
+    try:
+        from datasets import Audio
+    except ImportError:
+        return ds
+    features = getattr(ds, "features", None)
+    if not features:
+        return ds
+    for name, feat in features.items():
+        if isinstance(feat, Audio) and getattr(feat, "decode", True):
+            ds = ds.cast_column(name, Audio(decode=False))
+    return ds
+
+
 @dataclass
 class Doc:
     """One evaluation sample."""
@@ -171,6 +192,7 @@ class MillTask(ABC):
                         split=split,
                         revision=self.config.hf_revision,
                     )
+                ds = _disable_audio_decoding(ds)
                 if self.config.hf_filter:
                     ds = ds.filter(self.config.hf_filter)
                 if limit is not None:
@@ -264,9 +286,11 @@ class MillTask(ABC):
         prefix = doc.instruction or ""
         if doc.is_multimodal:
             from mill.api.protocol import ChatMessages
-            return ChatMessages.from_text_and_images(
+            return ChatMessages.from_text_and_media(
                 text=prefix + self._format_fewshot(doc) + doc.query,
                 images=doc.visuals or [],
+                audios=doc.audios or [],
+                videos=doc.videos or [],
             )
         return prefix + self._format_fewshot(doc) + doc.query
 

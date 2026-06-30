@@ -77,19 +77,17 @@ class TransformersModel(GenerativeModel):
             processor = None
 
         if processor is not None and hasattr(processor, "tokenizer"):
-            # VL model — use ImageTextToText with causal-LM fallback.
+            # Multimodal model (vision-language or audio-language).
             self._processor = processor
             self._tokenizer = processor.tokenizer
-            try:
-                from transformers import AutoModelForImageTextToText
-                self._model = AutoModelForImageTextToText.from_pretrained(path, **model_kwargs)
-            except (ValueError, KeyError):
-                self._model = AutoModelForCausalLM.from_pretrained(path, **model_kwargs)
+            self._model = self._load_multimodal_model(path, model_kwargs, trust_remote_code)
             # Infer modalities from processor when not explicitly provided.
             if modalities is None:
                 inferred = {"text"}
                 if getattr(self._processor, "image_processor", None) is not None:
                     inferred.add("image")
+                if getattr(self._processor, "feature_extractor", None) is not None:
+                    inferred.add("audio")
                 modalities = list(inferred)
         else:
             # Text-only model.  Reuse the bare tokenizer if AutoProcessor
@@ -146,6 +144,91 @@ class TransformersModel(GenerativeModel):
             return min(bs, 512)
         except Exception:
             return super()._estimate_starting_batch_size()
+
+    def _load_multimodal_model(self, path: str, model_kwargs: dict, trust_remote_code: bool):
+        """Load a multimodal generative model (vision-language or audio-language).
+
+        Most VLMs are served by ``AutoModelForImageTextToText``. Audio-language
+        models (e.g. ``Qwen2AudioForConditionalGeneration``) aren't in that auto
+        mapping, so fall back to the concrete architecture named in the model's
+        config, and finally to ``AutoModelForCausalLM``.
+        """
+        from transformers import AutoModelForCausalLM
+        try:
+            from transformers import AutoModelForImageTextToText
+            return AutoModelForImageTextToText.from_pretrained(path, **model_kwargs)
+        except (ValueError, KeyError, OSError):
+            pass
+        try:
+            import transformers
+            from transformers import AutoConfig
+            cfg = AutoConfig.from_pretrained(path, trust_remote_code=trust_remote_code)
+            for arch in getattr(cfg, "architectures", None) or []:
+                model_cls = getattr(transformers, arch, None)
+                if model_cls is not None:
+                    return model_cls.from_pretrained(path, **model_kwargs)
+        except (ValueError, KeyError, OSError):
+            pass
+        return AutoModelForCausalLM.from_pretrained(path, **model_kwargs)
+
+    def _audio_sampling_rate(self) -> int:
+        """Sampling rate the processor's audio feature extractor expects (Hz)."""
+        fe = getattr(self._processor, "feature_extractor", None)
+        return int(getattr(fe, "sampling_rate", 16000) or 16000)
+
+    def _audio_kwarg(self) -> str:
+        """Name of the processor's raw-audio argument.
+
+        transformers ≥5 standardised on the singular ``audio``; older processors
+        (and some community ones) use ``audios``. Pick whichever the processor's
+        ``__call__`` actually accepts so the waveform isn't silently dropped.
+        """
+        import inspect
+        try:
+            params = inspect.signature(self._processor.__call__).parameters
+        except (TypeError, ValueError):
+            return "audio"
+        if "audio" in params:
+            return "audio"
+        if "audios" in params:
+            return "audios"
+        # Fall back to the modern name; a **kwargs-only processor accepts it.
+        return "audio"
+
+    def _prepare_audio(self, audio, target_sr: int):
+        """Coerce one audio item to a 1-D mono float32 waveform at ``target_sr``.
+
+        Accepts any of the shapes audio tasks produce:
+          - a decoded ``datasets`` dict ``{"array", "sampling_rate"}``;
+          - an un-decoded ``datasets`` dict ``{"bytes", "path"}`` (what Mill yields
+            when audio decoding is disabled to avoid the torchcodec dependency);
+          - a file path / URL string;
+          - a raw numpy array (assumed already at ``target_sr``).
+        """
+        import numpy as np
+
+        src_sr = target_sr
+        if isinstance(audio, dict) and audio.get("array") is not None:
+            array = np.asarray(audio["array"], dtype=np.float32)
+            src_sr = int(audio.get("sampling_rate") or target_sr)
+        elif isinstance(audio, dict) and audio.get("bytes") is not None:
+            import io
+            import soundfile as sf
+            array, src_sr = sf.read(io.BytesIO(audio["bytes"]), dtype="float32")
+        else:
+            src = audio.get("path") if isinstance(audio, dict) else audio
+            if isinstance(src, str):
+                import librosa
+                array, _ = librosa.load(src, sr=target_sr)  # librosa resamples + downmixes
+                return np.asarray(array, dtype=np.float32)
+            array = np.asarray(audio, dtype=np.float32)
+
+        if array.ndim > 1:  # stereo -> mono
+            array = array.mean(axis=1)
+        if src_sr != target_sr:
+            import librosa
+            array = librosa.resample(np.asarray(array, dtype=np.float32), orig_sr=src_sr, target_sr=target_sr)
+        return np.asarray(array, dtype=np.float32)
 
     # ── MillModel hooks ───────────────────────────────────────────────────────
 
@@ -252,7 +335,9 @@ class TransformersModel(GenerativeModel):
         if videos:
             proc_kwargs["videos"] = videos
         if audios:
-            proc_kwargs["audios"] = audios
+            target_sr = self._audio_sampling_rate()
+            proc_kwargs[self._audio_kwarg()] = [self._prepare_audio(a, target_sr) for a in audios]
+            proc_kwargs["sampling_rate"] = target_sr
 
         inputs = self._processor(**proc_kwargs).to(self._model.device)
         with torch.inference_mode():

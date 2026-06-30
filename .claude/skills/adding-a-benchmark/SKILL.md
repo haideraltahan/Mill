@@ -184,6 +184,27 @@ separately, so just commit the `.mdx` changes.
 
 ---
 
+## Phase 6 — Submit a PR
+
+Put the work on its own branch, commit only the files this benchmark touches
+(task, model config, docs), and open a pull request. Keep the PR description
+**concise** and write it in the **first person** — describe what I did and how I
+validated it, not a generic feature blurb:
+
+```bash
+git checkout -b add-<name>
+git add mill/tasks/<name> docs/... mill/models/configs/...
+git commit  # concise, first-person message
+git push -u origin add-<name>
+gh pr create --title "Add <name> benchmark" --body "<concise, first-person summary>"
+```
+
+In the body, state the score I measured and the baseline I compared against
+(e.g. "I reproduced X within one standard error" or "I recorded X as the initial
+baseline") in one or two sentences. No filler.
+
+---
+
 ## Definition of done
 
 - [ ] Source repo + paper located; official grading logic understood and mirrored.
@@ -191,3 +212,4 @@ separately, so just commit the `.mdx` changes.
 - [ ] Reproducible randomness via `sample_rng`; metric matches upstream.
 - [ ] Score validated against the published baseline (or recorded as an explicit initial baseline).
 - [ ] Reproducibility page + overview card + tasks-table row + `docs.json` nav + changelog updated.
+- [ ] Changes committed on a branch and opened as a PR with a concise, first-person summary.

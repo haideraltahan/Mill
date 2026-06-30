@@ -117,7 +117,26 @@ class ChatMessages(BaseModel):
     @classmethod
     def from_text_and_images(cls, text: str, images: list, role: str = "user") -> "ChatMessages":
         """Build a single user turn with images followed by text."""
-        content: List[ChatContent] = [ChatImageContent(url=img) for img in images]
+        return cls.from_text_and_media(text=text, images=images, role=role)
+
+    @classmethod
+    def from_text_and_media(
+        cls,
+        text: str,
+        images: list | None = None,
+        audios: list | None = None,
+        videos: list | None = None,
+        role: str = "user",
+    ) -> "ChatMessages":
+        """Build a single user turn with media (images/audios/videos) followed by text.
+
+        Media precedes the text so the prompt reads "<media> <question>", matching
+        how the multimodal task backends (VLMs, audio-LMs) expect their inputs.
+        """
+        content: List[ChatContent] = []
+        content.extend(ChatImageContent(url=img) for img in (images or []))
+        content.extend(ChatAudioContent(url=aud) for aud in (audios or []))
+        content.extend(ChatVideoContent(url=vid) for vid in (videos or []))
         content.append(ChatTextContent(text=text))
         return cls(messages=[ChatMessage(role=role, content=content)])
 
