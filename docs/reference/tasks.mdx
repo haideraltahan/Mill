@@ -15,6 +15,7 @@ Mill is in **alpha**. Five benchmarks ship today, spanning text and vision. Add 
 | `imagenet` | `imagenet`, `imagenet_mcq` | Image | zero-shot / generative MCQ | 0 | `acc` / `imagenet_mcq_acc` |
 | `mmmu_pro` | `mmmu_pro`, `mmmu_pro_clip` | Image \+ Text | generative CoT / zero-shot | 0 | `mmmu_pro_acc` / `acc` |
 | `clotho_aqa` | `clotho_aqa` | Audio \+ Text | `GENERATIVE_QA` (single word) | 0 | `clotho_aqa_exact_match` |
+| `esc50` | `esc50`, `esc50_generative` | Audio (\+ Text) | zero-shot / generative | 0 | `acc` / `esc50_gen_acc` |
 
 Pass either the benchmark name (`mmlu`) or an individual task (`mmlu_abstract_algebra`) to `mill eval`. Browse everything interactively with `mill ls`.
 
