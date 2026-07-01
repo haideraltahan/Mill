@@ -48,12 +48,12 @@ mill --output_dir ./results collect --metric esc50_gen_acc
 </CardGroup>
 
 <Note>
-  Published ESC-50 zero-shot for the `laion/clap-htsat-unfused` checkpoint is **≈94.76%** ([MAEB](https://arxiv.org/pdf/2602.16008)) — not to be confused with the original CLAP paper's 82.6%, which is a different (Microsoft) model. Mill measures **91.55%** with the single standard `This is a sound of {c}.` prompt; the ~3-point gap is consistent with the prompt-template ensembling reproductions typically use. The generative rendering has no published baseline, so Qwen2-Audio's **46.55%** is recorded as an **initial baseline**. Both are 50-way (chance = 2%).
+  Published ESC-50 zero-shot for the `laion/clap-htsat-unfused` checkpoint is **≈94.76%** ([MAEB](https://arxiv.org/pdf/2602.16008)) — not to be confused with the original CLAP paper's 82.6%, which is a different (Microsoft) model. Mill measures **91.55%**, matching LAION-CLAP's [official zero-shot protocol](https://github.com/LAION-AI/CLAP/blob/main/src/laion_clap/evaluate/eval_zeroshot_classification.py) exactly: the same `This is a sound of {c}.` prompt, L2-normalized embeddings, and `rand_trunc`/`repeatpad` audio preprocessing. Prompt ensembling, int16 quantization, and lower precision were each tested and do **not** close the gap (they slightly lower it). The residual is the documented accuracy drop of the HuggingFace-converted CLAP weights versus the original `laion_clap` checkpoint ([LAION-AI/CLAP #126](https://github.com/LAION-AI/CLAP/issues/126)) — intrinsic to the checkpoint Mill evaluates. The generative rendering has no published baseline, so Qwen2-Audio's **46.55%** is recorded as an **initial baseline**. Both are 50-way (chance = 2%).
 </Note>
 
 ### Per-model results
 
 | Model | Rendering | Mill | Reference |
 | --- | --- | --- | --- |
-| `laion/clap-htsat-unfused` | Zero-shot (`acc`) | **91.55%** ± 0.62 | ≈94.76% ([MAEB](https://arxiv.org/pdf/2602.16008)); single-prompt vs ensemble |
+| `laion/clap-htsat-unfused` | Zero-shot (`acc`) | **91.55%** ± 0.62 | ≈94.76% ([MAEB](https://arxiv.org/pdf/2602.16008)); gap is the HF-weight-conversion drop ([#126](https://github.com/LAION-AI/CLAP/issues/126)) |
 | `Qwen/Qwen2-Audio-7B-Instruct` | Generative (`esc50_gen_acc`) | **46.55%** ± 1.12 | Mill measurement (initial baseline) |
