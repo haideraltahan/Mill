@@ -1,0 +1,25 @@
+/*
+ * Mill brand color palette — single source of truth.
+ *
+ * Raw brand colors and how each maps to the Mintlify docs theme
+ * (docs.json `colors` and `background`). Kept here for future use;
+ * update this file first, then mirror any changes into docs.json.
+ */
+
+:root {
+  /* Raw brand palette */
+  --palladian: #EEE9DF;                /* light cream — light-mode background */
+  --oatmeal: #C9C1B1;                  /* muted tan — borders / subtle surfaces */
+  --blue-fantastic: #2C3B4D;           /* slate blue — secondary text / surfaces */
+  --burning-flame: #FFB162;            /* warm orange — dark-mode accent */
+  --truffle-trouble: #A35139;          /* terracotta — primary accent */
+  --abyssal-anchorfish-blue: #1B2632;  /* deep navy — dark-mode background */
+
+  /* Semantic roles (mirrors docs.json) */
+  --color-primary: var(--truffle-trouble);        /* colors.primary — emphasis in light mode */
+  --color-accent-dark-mode: var(--burning-flame); /* colors.light — emphasis in dark mode */
+  --color-interactive: var(--truffle-trouble);    /* colors.dark — buttons & hover, both modes */
+
+  --background-light: var(--palladian);            /* background.color.light */
+  --background-dark: var(--abyssal-anchorfish-blue); /* background.color.dark */
+}
