@@ -204,8 +204,8 @@ class Pipeline:
     def _display(self, results: dict[str, dict]) -> None:
         if not results:
             return
-        print(f"\n{'Task':<35} {'Score':>10}")
-        print("-" * 47)
+        print(f"\n{'Model':<30} {'Task':<35} {'Score':>10}")
+        print("-" * 77)
         for task_name, metrics in results.items():
             main = next(
                 (v for k, v in metrics.items()
@@ -213,5 +213,5 @@ class Pipeline:
                 None,
             )
             if main is not None:
-                print(f"{task_name:<35} {main:>10.4f}")
+                print(f"{self._model_abbr:<30} {task_name:<35} {main:>10.4f}")
         print()
