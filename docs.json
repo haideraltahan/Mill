@@ -1,6 +1,6 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
+  "theme": "aspen",
   "name": "Mill",
   "description": "Unified multi-modal evaluation framework for text, image, video, and audio benchmarks.",
   "colors": {
