@@ -64,7 +64,8 @@
             "group": "Audio",
             "pages": [
               "docs/reproducibility/clotho_aqa",
-              "docs/reproducibility/esc50"
+              "docs/reproducibility/esc50",
+              "docs/reproducibility/urbansound8k"
             ]
           }
         ]
