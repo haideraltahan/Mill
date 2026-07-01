@@ -45,13 +45,28 @@
         "group": "Reproducibility",
         "pages": [
           "docs/reproducibility/overview",
-          "docs/reproducibility/mmlu",
-          "docs/reproducibility/mmlu-pro",
-          "docs/reproducibility/cifar10",
-          "docs/reproducibility/imagenet",
-          "docs/reproducibility/mmmu_pro",
-          "docs/reproducibility/clotho_aqa",
-          "docs/reproducibility/esc50"
+          {
+            "group": "Text",
+            "pages": [
+              "docs/reproducibility/mmlu",
+              "docs/reproducibility/mmlu-pro"
+            ]
+          },
+          {
+            "group": "Vision",
+            "pages": [
+              "docs/reproducibility/cifar10",
+              "docs/reproducibility/imagenet",
+              "docs/reproducibility/mmmu_pro"
+            ]
+          },
+          {
+            "group": "Audio",
+            "pages": [
+              "docs/reproducibility/clotho_aqa",
+              "docs/reproducibility/esc50"
+            ]
+          }
         ]
       },
       {
