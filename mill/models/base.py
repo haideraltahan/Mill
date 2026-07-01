@@ -34,6 +34,61 @@ def is_multimodal_request(request: "Instance") -> bool:
     return isinstance(request.arguments[0], ChatMessages)
 
 
+def decode_audio_array(audio, target_sr: int):
+    """Coerce one audio item to a 1-D mono float32 waveform at ``target_sr``.
+
+    Accepts any shape audio tasks produce: a decoded ``datasets`` dict
+    (``{"array","sampling_rate"}``), an un-decoded dict (``{"bytes","path"}`` —
+    what Mill yields when audio decoding is disabled to avoid torchcodec), a file
+    path/URL string, or a raw numpy array (assumed already at ``target_sr``).
+    Shared by the generative (transformers) and contrastive (CLAP) backends.
+    """
+    import numpy as np
+
+    src_sr = target_sr
+    if isinstance(audio, dict) and audio.get("array") is not None:
+        array = np.asarray(audio["array"], dtype=np.float32)
+        src_sr = int(audio.get("sampling_rate") or target_sr)
+    elif isinstance(audio, dict) and audio.get("bytes") is not None:
+        import io
+        import soundfile as sf
+        array, src_sr = sf.read(io.BytesIO(audio["bytes"]), dtype="float32")
+    else:
+        src = audio.get("path") if isinstance(audio, dict) else audio
+        if isinstance(src, str):
+            import librosa
+            array, _ = librosa.load(src, sr=target_sr)  # librosa resamples + downmixes
+            return np.asarray(array, dtype=np.float32)
+        array = np.asarray(audio, dtype=np.float32)
+
+    if array.ndim > 1:  # stereo -> mono
+        array = array.mean(axis=1)
+    if src_sr != target_sr:
+        import librosa
+        array = librosa.resample(np.asarray(array, dtype=np.float32), orig_sr=src_sr, target_sr=target_sr)
+    return np.asarray(array, dtype=np.float32)
+
+
+def load_audio(request: "Instance", target_sr: int):
+    """Resolve a single mono waveform (at ``target_sr``) from a classification request.
+
+    Prefers the doc's raw ``audios``, falling back to audio embedded in the
+    ChatMessages context. The audio analog of :func:`load_pil_image`, used by the
+    audio zero-shot classification backend (CLAP).
+    """
+    audio = None
+    if getattr(request.doc, "audios", None):
+        audio = request.doc.audios[0]
+    else:
+        context = request.arguments[0]
+        if hasattr(context, "extract_media"):
+            _, _, audios = context.extract_media()
+            audio = audios[0] if audios else None
+    if audio is None:
+        raise ValueError(f"Audio classification requires audio; none found for request {request.idx}.")
+    return decode_audio_array(audio, target_sr)
+
+
 def load_pil_image(request: "Instance"):
     """Resolve a single RGB PIL image from a classification request.
 

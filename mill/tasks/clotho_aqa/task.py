@@ -84,16 +84,74 @@ clotho_aqa_task = MillTaskConfig(
     approx_num_samples={"clotho_aqa_test_filtered": 1442, "clotho_aqa_val_filtered": 1048},
 )
 
-TASKS_TABLE = [clotho_aqa_task]
+# ── CLAP zero-shot-retrieval variant (for CLAP-style audio-text encoders) ─────
+# A ZeroShotClassifier can't answer a question, so it scores the audio against
+# each candidate answer rendered as "question + answer" (the clip_mcq_doc /
+# unibench VQA convention) and the best-matching option is graded. The
+# `clotho_aqa_test_filtered` split is entirely yes/no, so the option set is
+# {yes, no}. Like `mmmu_pro_clip`, this is a deliberately weak read — a
+# contrastive audio encoder has no notion of the question or of negation — and
+# exists for CLAP-family coverage, not as a strong solver (chance ≈ 55.9%,
+# the yes-majority rate).
 
+_CLAP_OPTIONS = ["yes", "no"]
+
+
+def clotho_aqa_clap_prompt(row: dict) -> Doc:
+    """CLAP zero-shot-retrieval rendering of one (yes/no) Clotho-AQA row."""
+    question = (row.get("question") or "").strip()
+    gold = str(row.get("answer", "")).strip().lower()
+    answer_index = _CLAP_OPTIONS.index(gold) if gold in _CLAP_OPTIONS else 0
+    captions = [f"{question} {opt}".strip() for opt in _CLAP_OPTIONS]
+    return Doc(
+        query="",
+        choices=captions,                 # candidate captions, embedded verbatim
+        target_index=answer_index,
+        audios=[row["audio"]],
+        metadata={"question": question, "options": _CLAP_OPTIONS},
+        task_name="clotho_aqa_clap",
+    )
+
+
+clotho_aqa_clap_task = MillTaskConfig(
+    name="clotho_aqa_clap",
+    version=1,
+    hf_repo="lmms-lab/ClothoAQA",
+    hf_subset="clotho_aqa",
+    hf_avail_splits=["clotho_aqa_test_filtered", "clotho_aqa_val_filtered"],
+    evaluation_splits=["clotho_aqa_test_filtered"],
+    prompt_function=clotho_aqa_clap_prompt,
+    task_type=TaskType.ZERO_SHOT_CLASSIFICATION,
+    zeroshot_templates=["{c}"],           # identity — caption embedded verbatim
+    input_modalities=["audio"],           # requires an audio-text encoder (CLAP)
+    n_shots=0,
+    metrics=[get_metric("acc")],
+    description=(
+        "Clotho-AQA (yes/no) rendered for CLAP-style audio-text encoders: the audio "
+        "is scored against each answer as 'question + answer' by audio-text similarity "
+        "and the best-matching option is graded. A deliberately weak read for "
+        "contrastive-audio coverage, not a strong solver."
+    ),
+    categories=["audio", "question-answering", "zero-shot"],
+    capabilities=["audio-text alignment", "audio understanding"],
+    paper_url="https://arxiv.org/abs/2204.09634",
+    approx_num_samples={"clotho_aqa_test_filtered": 1442, "clotho_aqa_val_filtered": 1048},
+)
+
+TASKS_TABLE = [clotho_aqa_task, clotho_aqa_clap_task]
+
+# One benchmark, two renderings: a generative audio-LM runs the free-form QA task,
+# a CLAP-style audio-text encoder runs the zero-shot variant (picked by capability).
 clotho_aqa_benchmark = MillBenchmarkConfig(
     name="clotho_aqa",
-    task_names=["clotho_aqa"],
-    metric_names=["clotho_aqa_exact_match"],
+    task_names=["clotho_aqa", "clotho_aqa_clap"],
+    metric_names=["clotho_aqa_exact_match", "acc"],
     weighted_aggregate=False,
+    pick_variant_by_model=True,
     description=(
-        "Clotho-AQA: crowdsourced audio question answering with single-word answers, "
-        "scored by case/punctuation-insensitive exact match."
+        "Clotho-AQA: crowdsourced audio question answering with single-word answers. "
+        "Exact match for generative audio-LMs; a yes/no CLAP zero-shot rendering for "
+        "contrastive audio-text encoders."
     ),
     categories=["audio", "question-answering"],
     capabilities=["audio understanding", "acoustic reasoning"],

@@ -196,39 +196,9 @@ class TransformersModel(GenerativeModel):
         return "audio"
 
     def _prepare_audio(self, audio, target_sr: int):
-        """Coerce one audio item to a 1-D mono float32 waveform at ``target_sr``.
-
-        Accepts any of the shapes audio tasks produce:
-          - a decoded ``datasets`` dict ``{"array", "sampling_rate"}``;
-          - an un-decoded ``datasets`` dict ``{"bytes", "path"}`` (what Mill yields
-            when audio decoding is disabled to avoid the torchcodec dependency);
-          - a file path / URL string;
-          - a raw numpy array (assumed already at ``target_sr``).
-        """
-        import numpy as np
-
-        src_sr = target_sr
-        if isinstance(audio, dict) and audio.get("array") is not None:
-            array = np.asarray(audio["array"], dtype=np.float32)
-            src_sr = int(audio.get("sampling_rate") or target_sr)
-        elif isinstance(audio, dict) and audio.get("bytes") is not None:
-            import io
-            import soundfile as sf
-            array, src_sr = sf.read(io.BytesIO(audio["bytes"]), dtype="float32")
-        else:
-            src = audio.get("path") if isinstance(audio, dict) else audio
-            if isinstance(src, str):
-                import librosa
-                array, _ = librosa.load(src, sr=target_sr)  # librosa resamples + downmixes
-                return np.asarray(array, dtype=np.float32)
-            array = np.asarray(audio, dtype=np.float32)
-
-        if array.ndim > 1:  # stereo -> mono
-            array = array.mean(axis=1)
-        if src_sr != target_sr:
-            import librosa
-            array = librosa.resample(np.asarray(array, dtype=np.float32), orig_sr=src_sr, target_sr=target_sr)
-        return np.asarray(array, dtype=np.float32)
+        """Coerce one audio item to a 1-D mono float32 waveform at ``target_sr``."""
+        from mill.models.base import decode_audio_array
+        return decode_audio_array(audio, target_sr)
 
     # ── MillModel hooks ───────────────────────────────────────────────────────
 
