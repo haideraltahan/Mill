@@ -4,9 +4,15 @@
   "name": "Mill",
   "description": "Unified multi-modal evaluation framework for text, image, video, and audio benchmarks.",
   "colors": {
-    "primary": "#0D9373",
-    "light": "#07C983",
-    "dark": "#0D9373"
+    "primary": "#A35139",
+    "light": "#FFB162",
+    "dark": "#A35139"
+  },
+  "background": {
+    "color": {
+      "light": "#EEE9DF",
+      "dark": "#1B2632"
+    }
   },
   "favicon": "/favicon.svg",
   "logo": {
