@@ -1,0 +1,54 @@
+---
+title: "UrbanSound8K"
+description: "UrbanSound8K urban sound classification reproduced with Mill (CLAP and audio-LMs)."
+---
+
+UrbanSound8K is a 10-class **urban sound** classification benchmark: 8,732 short (≤4 s) field recordings spanning air conditioner, car horn, children playing, dog bark, drilling, engine idling, gun shot, jackhammer, siren, and street music. Mill runs two renderings of the same 8,732 clips, auto-selected per model:
+
+- **`urbansound8k`** — **zero-shot** for CLAP-style audio-text encoders: each clip is scored against the 10 class names by audio-text similarity, using the standard `This is a sound of {c}.` prompt.
+- **`urbansound8k_generative`** — a generative rendering for audio-language models: the model hears the clip and the 10 candidate categories and answers with a category name, which is matched back to a class.
+
+Dataset: [`danavery/urbansound8K`](https://huggingface.co/datasets/danavery/urbansound8K); benchmark by [Salamon et al. (2014)](https://urbansounddataset.weebly.com/urbansound8k.html). UrbanSound8K ships as 10 folds for supervised cross-validation, but zero-shot needs no training split — the encoder isn't trained, so all 8,732 clips are scored (matching how CLAP-family papers report US8K zero-shot).
+
+## Evaluation configuration
+
+| Hyperparameter | Value |
+| --- | --- |
+| Benchmark | `urbansound8k` (auto-picks `urbansound8k` for CLAP, `urbansound8k_generative` for audio-LMs) |
+| Dataset | `danavery/urbansound8K` (`train`, 8,732 clips, 10 classes) |
+| n-shots | `0` |
+| Task type | `ZERO_SHOT_CLASSIFICATION` (CLAP) / `GENERATIVE_QA` (audio-LM) |
+| Prompt | `This is a sound of {c}.` (CLAP) / list-of-categories instruction (audio-LM) |
+| Metric | `acc` / `urbansound8k_gen_acc` |
+| Backend | CLAP (`clap`) / HuggingFace audio-LM (`hf`) |
+
+## Reproduce
+
+```bash
+# CLAP zero-shot
+mill --output_dir ./results eval mill/models/configs/clap/clap_htsat_unfused.py urbansound8k
+mill --output_dir ./results collect --metric acc
+
+# Audio-language model (generative category naming)
+mill --output_dir ./results eval mill/models/configs/qwen/qwen2_audio_7b.py urbansound8k
+mill --output_dir ./results collect --metric urbansound8k_gen_acc
+```
+
+## Results
+
+<CardGroup cols={2}>
+  <Card title="CLAP — clap-htsat-unfused" icon="gauge">
+    **75.16%** ± 0.46 \
+    zero-shot audio-text similarity
+  </Card>
+</CardGroup>
+
+<Note>
+  Published UrbanSound8K zero-shot for LAION-CLAP is **≈76–77%** ([LAION-CLAP](https://arxiv.org/html/2211.06687v4)), reported for the fused `630k-audioset` checkpoint with the same `This is a sound of {c}.` prompt. Mill evaluates the HuggingFace `laion/clap-htsat-unfused` checkpoint and measures **75.16%**. As with [ESC-50](/docs/reproducibility/esc50), the residual versus the paper is the documented accuracy drop of the HuggingFace-converted CLAP weights relative to the original `laion_clap` checkpoint ([LAION-AI/CLAP #126](https://github.com/LAION-AI/CLAP/issues/126)), compounded by the paper's use of the stronger fused checkpoint. All numbers are 10-way (chance = 10%).
+</Note>
+
+### Per-model results
+
+| Model | Rendering | Mill | Reference |
+| --- | --- | --- | --- |
+| `laion/clap-htsat-unfused` | Zero-shot (`acc`) | **75.16%** ± 0.46 | ≈76–77% ([LAION-CLAP](https://arxiv.org/html/2211.06687v4)); gap is the fused-vs-unfused checkpoint + HF-weight-conversion drop ([#126](https://github.com/LAION-AI/CLAP/issues/126)) |

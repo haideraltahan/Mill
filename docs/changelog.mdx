@@ -9,6 +9,7 @@ Mill is in **alpha**. Releases are tracked below, newest first; APIs and task co
   ## Audio classification
 
   - **ESC-50** — 50-class environmental sound classification, in two renderings: **zero-shot** for CLAP-style encoders and **generative** category-naming for audio-language models (`pick_variant_by_model`). See [Reproducibility → ESC-50](/docs/reproducibility/esc50).
+  - **UrbanSound8K** — 10-class urban sound classification, same two renderings (zero-shot CLAP + generative category-naming). See [Reproducibility → UrbanSound8K](/docs/reproducibility/urbansound8k).
   - **CLAP backend** — a single transformers `ZeroShotClassifier` (`clap`/`hf_clip`) that serves both CLIP (image-text) and CLAP (audio-text) models, inferring the media modality from the processor. The open\_clip backend (`clip`) is unchanged.
 </Update>
 
