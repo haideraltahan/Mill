@@ -1,0 +1,59 @@
+---
+title: "ESC-50"
+description: "ESC-50 environmental sound classification reproduced with Mill (CLAP and audio-LMs)."
+---
+
+ESC-50 is a 50-class **environmental sound** classification benchmark: 2,000 five-second clips spanning animals, natural soundscapes, human non-speech, interior, and exterior/urban sounds. Mill runs two renderings of the same 2,000 clips, auto-selected per model:
+
+- **`esc50`** — **zero-shot** for CLAP-style audio-text encoders: each clip is scored against the 50 class names by audio-text similarity, using the standard `This is a sound of {c}.` prompt.
+- **`esc50_generative`** — a generative rendering for audio-language models: the model hears the clip and the 50 candidate categories and answers with a category name, which is matched back to a class.
+
+Dataset: [`ashraq/esc50`](https://huggingface.co/datasets/ashraq/esc50); benchmark by [Piczak (2015)](https://github.com/karolpiczak/ESC-50). No train/test split is needed — the encoder isn't trained, so all 2,000 clips are scored.
+
+## Evaluation configuration
+
+| Hyperparameter | Value |
+| --- | --- |
+| Benchmark | `esc50` (auto-picks `esc50` for CLAP, `esc50_generative` for audio-LMs) |
+| Dataset | `ashraq/esc50` (`train`, 2,000 clips, 50 classes) |
+| n-shots | `0` |
+| Task type | `ZERO_SHOT_CLASSIFICATION` (CLAP) / `GENERATIVE_QA` (audio-LM) |
+| Prompt | `This is a sound of {c}.` (CLAP) / list-of-categories instruction (audio-LM) |
+| Metric | `acc` / `esc50_gen_acc` |
+| Backend | CLAP (`clap`) / HuggingFace audio-LM (`hf`) |
+
+## Reproduce
+
+```bash
+# CLAP zero-shot
+mill --output_dir ./results eval mill/models/configs/clap/clap_htsat_unfused.py esc50
+mill --output_dir ./results collect --metric acc
+
+# Audio-language model (generative category naming)
+mill --output_dir ./results eval mill/models/configs/qwen/qwen2_audio_7b.py esc50
+mill --output_dir ./results collect --metric esc50_gen_acc
+```
+
+## Results
+
+<CardGroup cols={2}>
+  <Card title="CLAP — clap-htsat-unfused" icon="gauge">
+    **91.55%** ± 0.62 \
+    zero-shot audio-text similarity
+  </Card>
+  <Card title="Qwen2-Audio-7B-Instruct" icon="gauge">
+    **46.55%** ± 1.12 \
+    generative category naming
+  </Card>
+</CardGroup>
+
+<Note>
+  Published ESC-50 zero-shot for the `laion/clap-htsat-unfused` checkpoint is **≈94.76%** ([MAEB](https://arxiv.org/pdf/2602.16008)) — not to be confused with the original CLAP paper's 82.6%, which is a different (Microsoft) model. Mill measures **91.55%** with the single standard `This is a sound of {c}.` prompt; the ~3-point gap is consistent with the prompt-template ensembling reproductions typically use. The generative rendering has no published baseline, so Qwen2-Audio's **46.55%** is recorded as an **initial baseline**. Both are 50-way (chance = 2%).
+</Note>
+
+### Per-model results
+
+| Model | Rendering | Mill | Reference |
+| --- | --- | --- | --- |
+| `laion/clap-htsat-unfused` | Zero-shot (`acc`) | **91.55%** ± 0.62 | ≈94.76% ([MAEB](https://arxiv.org/pdf/2602.16008)); single-prompt vs ensemble |
+| `Qwen/Qwen2-Audio-7B-Instruct` | Generative (`esc50_gen_acc`) | **46.55%** ± 1.12 | Mill measurement (initial baseline) |

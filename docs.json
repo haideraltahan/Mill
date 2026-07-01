@@ -50,7 +50,8 @@
           "docs/reproducibility/cifar10",
           "docs/reproducibility/imagenet",
           "docs/reproducibility/mmmu_pro",
-          "docs/reproducibility/clotho_aqa"
+          "docs/reproducibility/clotho_aqa",
+          "docs/reproducibility/esc50"
         ]
       },
       {
